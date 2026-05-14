@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pandoc --track-changes=all \"C:/Users/Minh Tam/Downloads/Mô tả phần mềm thi TN.docx\" -o \"C:/Users/Minh Tam/Desktop/TLSV-END/mota.md\")",
+      "PowerShell(pandoc --track-changes=all \"C:\\\\Users\\\\Minh Tam\\\\Downloads\\\\M� t? ph?n m?m thi TN.docx\" -o \"C:\\\\Users\\\\Minh Tam\\\\Desktop\\\\TLSV-END\\\\mota.md\")",
+      "PowerShell($src = \"C:\\\\Users\\\\Minh Tam\\\\Downloads\\\\Mô tả phần mềm thi TN.docx\"; $dst = \"C:\\\\Users\\\\Minh Tam\\\\Desktop\\\\TLSV-END\\\\_unpacked\"; Add-Type -AssemblyName System.IO.Compression.FileSystem; if \\(Test-Path $dst\\) { Remove-Item -Recurse -Force $dst }; [System.IO.Compression.ZipFile]::ExtractToDirectory\\($src, $dst\\); Get-ChildItem \"$dst\\\\word\" | Select-Object Name)",
+      "Bash(npm.cmd -v)",
+      "Bash(npm.cmd install *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://kdcvccxurmoidwssvanc.supabase.co/rest/v1/gm_round?select=id\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtkY3ZjY3h1cm1vaWR3c3N2YW5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2OTE2MDMsImV4cCI6MjA5NDI2NzYwM30._Bi5Lz51LuZPxZo47HqWHvD8JhbHbxV9i9CpJcX1K8o\")",
+      "Bash(npx.cmd next *)",
+      "Bash(gh --version)",
+      "Bash(gh auth *)",
+      "Bash(git config *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git rm *)",
+      "Bash(git commit -m 'feat: initial commit - phần mềm thi Thủ lĩnh Sinh viên *)"
+    ]
+  }
+}

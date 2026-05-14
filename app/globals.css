@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ocean-bg: linear-gradient(180deg, #5ed3ff 0%, #22bff7 60%, #06a8df 100%);
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background: #ebfaff;
+  color: #0c5675;
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+}
+
+.ocean-bg {
+  background-image: url("/bg-hoithi.jpg");
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 10px 30px rgba(7, 106, 146, 0.18);
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-semibold transition;
+}
+.btn-primary { @apply btn bg-ocean-600 text-white hover:bg-ocean-700 disabled:opacity-50; }
+.btn-secondary { @apply btn bg-white text-ocean-700 border border-ocean-300 hover:bg-ocean-50; }
+.btn-danger { @apply btn bg-rose-600 text-white hover:bg-rose-700; }
+.btn-ghost { @apply btn bg-transparent hover:bg-ocean-100/60; }
+
+.card { @apply glass rounded-2xl p-6; }
+
+.option-btn {
+  @apply w-full text-left p-4 rounded-xl border-2 border-ocean-200 bg-white/80 hover:bg-ocean-50 transition font-medium;
+}
+.option-btn.selected { @apply border-ocean-600 bg-ocean-100; }
+.option-btn.correct { @apply border-emerald-500 bg-emerald-100 text-emerald-900; }
+.option-btn.wrong { @apply border-rose-500 bg-rose-100 text-rose-900; }
+.option-btn.locked { @apply cursor-not-allowed opacity-90; }

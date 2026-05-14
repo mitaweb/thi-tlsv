@@ -1,0 +1,11 @@
+node_modules
+.next
+out
+.env*.local
+.env
+*.log
+.DS_Store
+_unpacked
+_mota.docx
+mota.txt
+.claude/
