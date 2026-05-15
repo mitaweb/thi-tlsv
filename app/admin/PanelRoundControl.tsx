@@ -203,7 +203,7 @@ export default function PanelRoundControl({ roundId, round }: { roundId: string;
                   <th className="text-left py-1">#</th>
                   <th className="text-left">Thí sinh</th>
                   <th className="text-right">Vòng này</th>
-                  <th className="text-right">Tổng (tích lũy)</th>
+                  <th className="text-right">Tổng điểm</th>
                 </tr>
               </thead>
               <tbody>

@@ -35,7 +35,7 @@ export default function UnifiedLeaderboard({
         <div className={`grid ${mode === "top3" ? "grid-cols-12 gap-6 pb-4 mb-2" : "grid-cols-12 gap-4 pb-3 mb-3"} border-b-4 border-ocean-300 font-bold text-ocean-700 shrink-0`}>
           <div className={`col-span-7 ${mode === "top3" ? "text-3xl" : "text-2xl"}`}>Thí sinh</div>
           <div className={`col-span-2 text-right ${mode === "top3" ? "text-3xl" : "text-2xl"}`}>Điểm phần thi</div>
-          <div className={`col-span-3 text-right ${mode === "top3" ? "text-3xl" : "text-2xl"}`}>Tổng tích lũy</div>
+          <div className={`col-span-3 text-right ${mode === "top3" ? "text-3xl" : "text-2xl"}`}>Tổng điểm</div>
         </div>
 
         {/* Body rows */}

@@ -323,7 +323,7 @@ export default function QuizRoundControl({ roundId, round }: { roundId: string; 
                 <th className="text-left py-1">#</th>
                 <th className="text-left">Thí sinh</th>
                 <th className="text-right">Vòng</th>
-                <th className="text-right">Tổng</th>
+                <th className="text-right">Tổng điểm</th>
               </tr>
             </thead>
             <tbody>

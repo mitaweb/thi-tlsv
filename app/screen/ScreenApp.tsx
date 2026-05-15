@@ -512,53 +512,6 @@ function CountdownBig({ remaining, phase }: { remaining: number; phase: string }
   );
 }
 
-function Leaderboard({ rows }: { rows: RoundLeaderboardRow[] }) {
-  const medals = ["🥇", "🥈", "🥉"];
-  return (
-    <div className="flex-1 glass rounded-2xl px-10 py-6 flex flex-col min-h-0">
-      <h2 className="text-5xl font-bold text-center text-ocean-900 mb-5 drop-shadow-md shrink-0">
-        🏆 Bảng xếp hạng
-      </h2>
-      <div className="flex-1 flex flex-col gap-3 min-h-0">
-        {rows.map((r, i) => (
-          <div
-            key={r.contestant_id}
-            className={`flex-1 min-h-0 grid grid-cols-12 gap-4 items-center px-10 rounded-2xl border-4 ${
-              i === 0
-                ? "bg-amber-100 border-amber-400"
-                : i === 1
-                ? "bg-slate-100 border-slate-400"
-                : i === 2
-                ? "bg-orange-100 border-orange-400"
-                : "bg-white/85 border-ocean-200"
-            }`}
-          >
-            <div className="col-span-1 flex items-center justify-center">
-              <span className="font-extrabold text-5xl shrink-0">
-                {i < 3 ? medals[i] : `${i + 1}.`}
-              </span>
-            </div>
-            <div className="col-span-6">
-              <div className="font-bold text-3xl text-ocean-900 leading-tight">{r.full_name}</div>
-              {r.organization && (
-                <div className="text-xl text-ocean-600 mt-0.5">{r.organization}</div>
-              )}
-            </div>
-            <div className="col-span-2 text-right">
-              <div className="text-xs uppercase text-ocean-600 tracking-wide">Vòng</div>
-              <div className="font-mono font-bold text-3xl text-ocean-700">{r.round_score}đ</div>
-            </div>
-            <div className="col-span-3 text-right">
-              <div className="text-xs uppercase text-ocean-600 tracking-wide">Tổng</div>
-              <div className="font-mono font-extrabold text-5xl text-ocean-800">{r.cumulative_score}đ</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function playTick(ctx: AudioContext | null) {
   if (!ctx) return;
   const o = ctx.createOscillator();
