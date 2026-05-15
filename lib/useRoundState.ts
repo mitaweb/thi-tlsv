@@ -37,8 +37,11 @@ export function useRoundState(roundId: string | null): RoundStateBundle {
       })
       .catch(() => {});
 
+    // Unique channel name mỗi mount để tránh "cannot add postgres_changes after subscribe"
+    // khi nhiều component cùng dùng hook (hoặc StrictMode dev mount 2 lần).
+    const channelName = `round-state-${roundId}-${Math.random().toString(36).slice(2)}`;
     const channel = sb
-      .channel(`round-state-${roundId}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "gm_round_state", filter: `round_id=eq.${roundId}` },

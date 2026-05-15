@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRoundState, useCountdown, useDebateCountdown } from "@/lib/useRoundState";
 import { getBrowserClient } from "@/lib/supabase";
-import type { Round, Contestant, Answer, RoundLeaderboardRow, Judge } from "@/lib/types";
+import type { Round, Contestant, Answer, RoundLeaderboardRow, Judge, RoundState, Question } from "@/lib/types";
 
 interface RoundWithGroup extends Round {
   group?: { id: string; code: string; name: string; debate_title: string | null } | null;
@@ -85,16 +85,21 @@ export default function MCView() {
 }
 
 function MCStage({ round }: { round: RoundWithGroup }) {
+  // Hoist useRoundState ở 1 nơi duy nhất, pass state xuống children.
+  // Tránh lỗi 'cannot add postgres_changes after subscribe' do nhiều component
+  // cùng subscribe channel `round-state-{roundId}`.
+  const { state, currentQuestion, serverOffsetMs } = useRoundState(round.id);
+
   return (
     <main className="ocean-bg min-h-screen p-4 md:p-6">
       <div className="max-w-6xl mx-auto space-y-4">
-        <MCHeader round={round} />
+        <MCHeader round={round} state={state} serverOffsetMs={serverOffsetMs} />
         {round.kind === "quiz" ? (
-          <QuizMC round={round} />
+          <QuizMC round={round} state={state} currentQuestion={currentQuestion} />
         ) : round.kind === "panel" ? (
           <PanelMC round={round} />
         ) : (
-          <DebateMC round={round} />
+          <DebateMC round={round} state={state} serverOffsetMs={serverOffsetMs} />
         )}
       </div>
     </main>
@@ -102,8 +107,15 @@ function MCStage({ round }: { round: RoundWithGroup }) {
 }
 
 /* ============== HEADER ================ */
-function MCHeader({ round }: { round: RoundWithGroup }) {
-  const { state, serverOffsetMs } = useRoundState(round.id);
+function MCHeader({
+  round,
+  state,
+  serverOffsetMs,
+}: {
+  round: RoundWithGroup;
+  state: RoundState | null;
+  serverOffsetMs: number;
+}) {
   const remaining = useCountdown(state, round.question_seconds, serverOffsetMs);
   const debateRemaining = useDebateCountdown(state, serverOffsetMs);
   const phase = state?.phase ?? "idle";
@@ -142,8 +154,15 @@ function kindLabel(k: string) {
 }
 
 /* ============== QUIZ MC ================ */
-function QuizMC({ round }: { round: RoundWithGroup }) {
-  const { state, currentQuestion } = useRoundState(round.id);
+function QuizMC({
+  round,
+  state,
+  currentQuestion,
+}: {
+  round: RoundWithGroup;
+  state: RoundState | null;
+  currentQuestion: Question | null;
+}) {
   const [contestants, setContestants] = useState<Contestant[]>([]);
   const [answers, setAnswers] = useState<Record<string, Answer>>({});
 
@@ -402,8 +421,15 @@ function PanelMC({ round }: { round: RoundWithGroup }) {
 }
 
 /* ============== DEBATE MC ================ */
-function DebateMC({ round }: { round: RoundWithGroup }) {
-  const { state, serverOffsetMs } = useRoundState(round.id);
+function DebateMC({
+  round,
+  state,
+  serverOffsetMs,
+}: {
+  round: RoundWithGroup;
+  state: RoundState | null;
+  serverOffsetMs: number;
+}) {
   const remaining = useDebateCountdown(state, serverOffsetMs);
   const [contestants, setContestants] = useState<Contestant[]>([]);
   const [judges, setJudges] = useState<JudgeProgress[]>([]);

@@ -15,9 +15,8 @@ html, body {
 }
 
 .ocean-bg {
-  background-image: url("/bg-hoithi.jpg");
-  background-size: cover;
-  background-position: center;
+  /* Gradient ocean — không dùng ảnh để tránh 404 nếu chưa upload bg-hoithi.jpg */
+  background: linear-gradient(180deg, #5ed3ff 0%, #22bff7 55%, #06a8df 100%);
   background-attachment: fixed;
   min-height: 100vh;
 }
