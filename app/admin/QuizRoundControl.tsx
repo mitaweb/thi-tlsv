@@ -19,6 +19,8 @@ export default function QuizRoundControl({ roundId, round }: { roundId: string; 
   const [completedQIds, setCompletedQIds] = useState<Set<string>>(new Set());
   const [voidedQIds, setVoidedQIds] = useState<Set<string>>(new Set());
   const lastQIdxRef = useRef<number>(-1);
+  // Disable nút "Câu kế" sau khi click cho đến khi câu mới load xong (chống double-click)
+  const [gotoBusy, setGotoBusy] = useState<boolean>(false);
 
   useEffect(() => {
     fetch(`/api/questions?roundId=${roundId}`).then((r) => r.json()).then((j) => j.ok && setQuestions(j.data));
@@ -73,6 +75,11 @@ export default function QuizRoundControl({ roundId, round }: { roundId: string; 
       })
       .subscribe();
     return () => { sb.removeChannel(ch); };
+  }, [state?.current_question_id]);
+
+  // Clear gotoBusy khi câu hỏi mới đã load (state.current_question_id đổi)
+  useEffect(() => {
+    setGotoBusy(false);
   }, [state?.current_question_id]);
 
   async function dispatch(action: string, extra: Record<string, unknown> = {}) {
@@ -220,8 +227,21 @@ export default function QuizRoundControl({ roundId, round }: { roundId: string; 
                 </button>
               )}
               {nextQ && (
-                <button className="btn-primary" onClick={() => dispatch("goto", { questionId: nextQ.id })}>
-                  → Câu kế ({nextQ.display_order})
+                <button
+                  className="btn-primary"
+                  disabled={gotoBusy || (phase === "running" && remaining > 0)}
+                  onClick={async () => {
+                    if (gotoBusy) return;
+                    setGotoBusy(true);
+                    try {
+                      await dispatch("goto", { questionId: nextQ.id });
+                    } finally {
+                      // Re-enable nếu fail; nếu thành công, useEffect sẽ clear khi phase đổi
+                      setTimeout(() => setGotoBusy(false), 2000);
+                    }
+                  }}
+                >
+                  {gotoBusy ? "Đang chuyển..." : `→ Câu kế (${nextQ.display_order})`}
                 </button>
               )}
             </div>
