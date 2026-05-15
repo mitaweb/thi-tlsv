@@ -141,7 +141,7 @@ function DebateScreen({ round }: { round: RoundWithGroup }) {
     }
     if (sec <= 0 && finalPlayedRef.current !== state.debate_started_at) {
       finalPlayedRef.current = state.debate_started_at;
-      playFinal(audioCtxRef.current);
+      playDebateBell(audioCtxRef.current);
     }
   }, [remaining, state?.phase, state?.debate_started_at]);
 
@@ -607,6 +607,37 @@ function playFinal(ctx: AudioContext | null) {
   o.connect(g).connect(ctx.destination);
   o.start();
   o.stop(ctx.currentTime + 0.55);
+}
+
+/** Chuông "RENG RENG RENG" cho phản biện hết giờ — to + 3 hồi + harmonic */
+function playDebateBell(ctx: AudioContext | null) {
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  // 3 hồi chuông cách nhau 0.42s, mỗi hồi gồm 4 harmonic (fundamental + 3 overtone)
+  // tạo cảm giác chuông kim loại "reng"
+  const ringTimes = [0, 0.42, 0.84];
+  const harmonics = [
+    { freq: 880,  gain: 0.85, type: "sine" as OscillatorType },   // fundamental A5
+    { freq: 1320, gain: 0.55, type: "sine" as OscillatorType },   // 1.5x — perfect fifth
+    { freq: 2200, gain: 0.35, type: "sine" as OscillatorType },   // 2.5x — bell-like
+    { freq: 3300, gain: 0.20, type: "triangle" as OscillatorType }, // sharp metallic shimmer
+  ];
+
+  for (const t of ringTimes) {
+    for (const h of harmonics) {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.frequency.value = h.freq;
+      o.type = h.type;
+      // Attack nhanh (5ms), decay chậm (0.55s) → giống chuông
+      g.gain.setValueAtTime(0.001, now + t);
+      g.gain.exponentialRampToValueAtTime(h.gain, now + t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.001, now + t + 0.55);
+      o.connect(g).connect(ctx.destination);
+      o.start(now + t);
+      o.stop(now + t + 0.6);
+    }
+  }
 }
 
 /** Fanfare C major arpeggio khi hiện đáp án đúng */

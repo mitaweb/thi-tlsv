@@ -56,12 +56,10 @@ html, body {
   animation: correctBlink 0.55s ease-in-out 5;
 }
 
-/* Background sân khấu cho trang phản biện. Nếu file public/background.png không
-   tồn tại, browser bỏ qua background-image (nền gradient ocean phía dưới hiện ra). */
+/* Background sân khấu cho trang phản biện — gradient xanh nước biển sâu → cyan,
+   tạo cảm giác đại dương, contrast tốt cho chữ trắng. */
 .debate-bg {
-  background-image: linear-gradient(180deg, rgba(0, 12, 32, 0.55) 0%, rgba(2, 30, 70, 0.78) 100%), url("/background.png");
-  background-size: cover;
-  background-position: center;
+  background: linear-gradient(180deg, #0c5675 0%, #1276a3 30%, #22bff7 70%, #06a8df 100%);
   background-attachment: fixed;
   min-height: 100vh;
 }
