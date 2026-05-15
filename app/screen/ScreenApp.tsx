@@ -441,8 +441,10 @@ function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
 
   return (
     <main className="ocean-bg h-screen overflow-hidden p-8 flex flex-col">
-      <header className="text-center mb-4">
-        <h1 className="text-4xl font-bold text-ocean-900 drop-shadow">{round.name}</h1>
+      <header className="text-center mb-3">
+        <h1 className="text-4xl font-extrabold text-ocean-900 drop-shadow uppercase tracking-wide">
+          PHẦN THI {round.name}
+        </h1>
       </header>
 
       <div className="relative flex-1 flex flex-col min-h-0">
@@ -476,11 +478,11 @@ function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
               </div>
             )}
 
-            <div className="card flex-1 flex flex-col gap-6 min-h-0">
+            <div className="card flex-1 flex flex-col gap-4 min-h-0">
               <h2 className="text-3xl md:text-5xl font-bold text-ocean-900 leading-snug">
                 {currentQuestion.prompt}
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {(["A", "B", "C", "D"] as const).map((k) => {
                   const text = (currentQuestion as any)["option_" + k.toLowerCase()];
                   if (!text) return null;

@@ -15,8 +15,12 @@ html, body {
 }
 
 .ocean-bg {
-  /* Gradient ocean — không dùng ảnh để tránh 404 nếu chưa upload bg-hoithi.jpg */
-  background: linear-gradient(180deg, #5ed3ff 0%, #22bff7 55%, #06a8df 100%);
+  /* Ảnh nền skyline thành phố — anh upload vào public/bg-hoithi.jpg.
+     Nếu file chưa có thì gradient màu phía dưới sẽ hiện ra (fallback). */
+  background-color: #5ed3ff;
+  background-image: url("/bg-hoithi.jpg");
+  background-size: cover;
+  background-position: center;
   background-attachment: fixed;
   min-height: 100vh;
 }
@@ -55,10 +59,13 @@ html, body {
   animation: correctBlink 0.55s ease-in-out 5;
 }
 
-/* Background sân khấu cho trang phản biện — gradient xanh nước biển sâu → cyan,
-   tạo cảm giác đại dương, contrast tốt cho chữ trắng. */
+/* Background sân khấu phản biện — dùng cùng ảnh skyline với .ocean-bg.
+   Fallback gradient xanh nước biển nếu file chưa upload. */
 .debate-bg {
-  background: linear-gradient(180deg, #0c5675 0%, #1276a3 30%, #22bff7 70%, #06a8df 100%);
+  background-color: #06a8df;
+  background-image: url("/bg-hoithi.jpg");
+  background-size: cover;
+  background-position: center;
   background-attachment: fixed;
   min-height: 100vh;
 }
