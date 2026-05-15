@@ -100,21 +100,10 @@ create index if not exists gm_log_round_idx on gm_activity_log(round_id, created
 create index if not exists gm_log_contestant_idx on gm_activity_log(contestant_id, created_at desc);
 
 -- =====================================================
--- View tính bảng xếp hạng
+-- View gm_leaderboard ĐÃ XÓA (security definer bypass RLS warning).
+-- Thay bằng /api/round-leaderboard tính trong lib/round-scoring.ts.
+-- Nếu cần re-setup từ đầu, KHÔNG cần view này.
 -- =====================================================
-create or replace view gm_leaderboard as
-select
-  c.id as contestant_id,
-  c.round_id,
-  c.display_order,
-  c.full_name,
-  c.organization,
-  coalesce(sum(a.points_awarded), 0)::int as total_points,
-  count(a.id) filter (where a.is_correct) as correct_count,
-  count(a.id) as answered_count
-from gm_contestant c
-left join gm_answer a on a.contestant_id = c.id and a.locked = true
-group by c.id;
 
 -- =====================================================
 -- RLS: bật RLS, cho phép anon đọc public, ghi qua service_role

@@ -132,13 +132,3 @@ export interface Answer {
   locked: boolean;
 }
 
-export interface LeaderboardRow {
-  contestant_id: string;
-  round_id: string;
-  display_order: number;
-  full_name: string;
-  organization: string | null;
-  total_points: number;
-  correct_count: number;
-  answered_count: number;
-}
