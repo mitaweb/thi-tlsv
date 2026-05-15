@@ -159,49 +159,52 @@ function DebateScreen({ round }: { round: RoundWithGroup }) {
 
   return (
     <main className="debate-bg h-screen overflow-hidden flex flex-col items-center justify-center text-white px-8">
-      <h1 className="text-5xl md:text-7xl font-extrabold tracking-wider drop-shadow-2xl text-center mb-8">
-        {round.group?.debate_title ?? "PHẢN BIỆN"}
-      </h1>
+      {/* Khung nội dung có nền mờ tối để chữ trắng nổi rõ trên ảnh background */}
+      <div className="bg-black/55 backdrop-blur-sm rounded-3xl px-12 py-10 shadow-2xl max-w-5xl w-full flex flex-col items-center">
+        <h1 className="text-5xl md:text-7xl font-extrabold tracking-wider drop-shadow-2xl text-center mb-6">
+          {round.group?.debate_title ?? "PHẢN BIỆN"}
+        </h1>
 
-      {!matchNo ? (
-        // Idle: chưa chọn match
-        <div className="text-2xl text-white/80 italic">Đợi Ban Tổ chức bắt đầu phần thi...</div>
-      ) : (
-        <>
-          {/* Match info */}
-          <div className="text-center mb-6">
-            <div className="text-2xl text-amber-200 font-bold uppercase tracking-wider mb-2">
-              Cặp đấu số {matchNo}
+        {!matchNo ? (
+          // Idle: chưa chọn match
+          <div className="text-2xl text-white/85 italic">Đợi Ban Tổ chức bắt đầu phần thi...</div>
+        ) : (
+          <>
+            {/* Match info */}
+            <div className="text-center mb-6">
+              <div className="text-2xl text-amber-200 font-bold uppercase tracking-wider mb-2">
+                Cặp đấu số {matchNo}
+              </div>
+              {matchPair && (
+                <div className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg">
+                  {matchPair[0].full_name}
+                  <span className="mx-4 text-amber-300">vs</span>
+                  {matchPair[1].full_name}
+                </div>
+              )}
             </div>
-            {matchPair && (
-              <div className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg">
-                {matchPair[0].full_name}
-                <span className="mx-4 text-amber-300">vs</span>
-                {matchPair[1].full_name}
+
+            {/* Phase label + countdown */}
+            {phaseLabel && (
+              <div className="text-3xl md:text-4xl text-white font-bold mb-4 drop-shadow">
+                {phaseLabel}
               </div>
             )}
-          </div>
 
-          {/* Phase label + countdown */}
-          {phaseLabel && (
-            <div className="text-3xl md:text-4xl text-white/95 font-bold mb-4 drop-shadow">
-              {phaseLabel}
+            <div
+              className={`text-9xl md:text-[12rem] font-mono font-extrabold px-12 py-6 rounded-3xl shadow-2xl ${
+                isUrgent ? "debate-urgent text-white" : "bg-white/95 text-ocean-900"
+              }`}
+            >
+              {state?.phase === "running" && remaining > 0 ? formatMMSS(remaining) : remaining <= 0 && totalSec > 0 ? "HẾT GIỜ" : "—"}
             </div>
-          )}
 
-          <div
-            className={`text-9xl md:text-[12rem] font-mono font-extrabold px-12 py-6 rounded-3xl shadow-2xl ${
-              isUrgent ? "debate-urgent text-white" : "bg-white/95 text-ocean-900"
-            }`}
-          >
-            {state?.phase === "running" && remaining > 0 ? formatMMSS(remaining) : remaining <= 0 && totalSec > 0 ? "HẾT GIỜ" : "—"}
-          </div>
-
-          <div className="text-base text-white/70 mt-6">
-            {totalSec > 0 && `Tối đa ${formatMMSS(totalSec)}`}
-          </div>
-        </>
-      )}
+            <div className="text-base text-white/80 mt-6">
+              {totalSec > 0 && `Tối đa ${formatMMSS(totalSec)}`}
+            </div>
+          </>
+        )}
+      </div>
     </main>
   );
 }

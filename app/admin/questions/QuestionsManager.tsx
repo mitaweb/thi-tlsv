@@ -15,8 +15,10 @@ export default function QuestionsManager() {
   useEffect(() => {
     fetch("/api/rounds").then((r) => r.json()).then((j) => {
       if (j.ok) {
-        setRounds(j.data);
-        if (j.data.length) setRoundId(j.data[0].id);
+        // Chỉ vòng quiz mới có câu hỏi (panel/debate không cần)
+        const quizOnly = (j.data as Round[]).filter((r) => (r as any).kind === "quiz");
+        setRounds(quizOnly);
+        if (quizOnly.length) setRoundId(quizOnly[0].id);
       }
     });
   }, []);
