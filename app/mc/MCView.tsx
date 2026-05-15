@@ -4,6 +4,9 @@ import { useRoundState, useCountdown } from "@/lib/useRoundState";
 import { getBrowserClient } from "@/lib/supabase";
 import type { Round, Contestant, Answer } from "@/lib/types";
 
+// MC chỉ xem được câu hỏi quiz hiện tại — panel/debate không có "câu hiện tại".
+// Sẽ hiển thị thông báo nếu MC mở vào vòng không phải quiz.
+
 export default function MCView() {
   const [rounds, setRounds] = useState<Round[]>([]);
   const [roundId, setRoundId] = useState<string>("");

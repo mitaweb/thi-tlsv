@@ -182,6 +182,18 @@ export async function POST(req: NextRequest) {
   const { error } = await sb.from("gm_round_state").update(patch).eq("round_id", roundId);
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 
+  // Broadcast vòng này lên màn /screen (auto-follow) khi quiz đang chạy
+  // toggle_scoreboard cũng cập nhật show_scoreboard trong display_state để màn /screen biết đang chiếu BXH vòng này
+  if (["goto", "start", "reveal", "leaderboard", "toggle_scoreboard"].includes(action)) {
+    const dsPatch: Record<string, unknown> = { current_round_id: roundId, updated_at: new Date().toISOString() };
+    if (action === "toggle_scoreboard") {
+      dsPatch.show_scoreboard = !(cur?.show_scoreboard ?? false);
+    } else if (action === "leaderboard") {
+      dsPatch.show_scoreboard = true;
+    }
+    await sb.from("gm_display_state").update(dsPatch).eq("id", 1);
+  }
+
   await sb.from("gm_activity_log").insert({
     round_id: roundId,
     actor: "admin",

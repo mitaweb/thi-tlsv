@@ -1,24 +1,39 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import type { Round, LeaderboardRow } from "@/lib/types";
+import type { Round, RoundLeaderboardRow } from "@/lib/types";
 import { useRoundState, useCountdown } from "@/lib/useRoundState";
 import { getBrowserClient } from "@/lib/supabase";
 
+interface RoundWithGroup extends Round {
+  group?: { id: string; code: string; name: string; debate_title: string | null } | null;
+}
+
 export default function ScreenApp() {
-  const [rounds, setRounds] = useState<Round[]>([]);
+  const [rounds, setRounds] = useState<RoundWithGroup[]>([]);
   const [roundId, setRoundId] = useState<string | null>(null);
   const [audioReady, setAudioReady] = useState(false);
 
+  // Fetch rounds
   useEffect(() => {
     fetch("/api/rounds")
       .then((r) => r.json())
-      .then((j) => {
-        if (j.ok) {
-          setRounds(j.data);
-          // Auto-select round có phase != idle, hoặc round đầu
-          if (j.data.length) setRoundId(j.data[0].id);
-        }
+      .then((j) => j.ok && setRounds(j.data));
+  }, []);
+
+  // Subscribe gm_display_state → tự follow vòng admin đang chiếu
+  useEffect(() => {
+    const sb = getBrowserClient();
+    const fetchDs = () =>
+      sb.from("gm_display_state").select("current_round_id").eq("id", 1).maybeSingle().then(({ data }) => {
+        const rid = (data as any)?.current_round_id;
+        if (rid) setRoundId(rid);
       });
+    fetchDs();
+    const ch = sb
+      .channel("screen-display-state")
+      .on("postgres_changes", { event: "*", schema: "public", table: "gm_display_state" }, fetchDs)
+      .subscribe();
+    return () => { sb.removeChannel(ch); };
   }, []);
 
   if (!audioReady) {
@@ -27,17 +42,9 @@ export default function ScreenApp() {
         <div className="card text-center max-w-md space-y-4">
           <h1 className="text-2xl font-bold text-ocean-800">Màn hình trình chiếu</h1>
           <p className="text-ocean-700">Bấm "Bật" để kích hoạt âm thanh đồng hồ đếm ngược.</p>
-          {rounds.length > 1 && (
-            <select
-              className="w-full p-3 rounded-lg border border-ocean-300"
-              value={roundId ?? ""}
-              onChange={(e) => setRoundId(e.target.value)}
-            >
-              {rounds.map((r) => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
-            </select>
-          )}
+          <p className="text-xs text-ocean-600">
+            Sau khi bật, màn hình sẽ tự động theo vòng admin chọn (không cần chọn vòng ở đây).
+          </p>
           <button className="btn-primary w-full text-lg" onClick={() => setAudioReady(true)}>
             🔊 Bật trình chiếu
           </button>
@@ -46,13 +53,113 @@ export default function ScreenApp() {
     );
   }
 
-  return roundId ? <ScreenStage roundId={roundId} round={rounds.find((r) => r.id === roundId)!} /> : null;
+  const round = rounds.find((r) => r.id === roundId);
+  if (!round) {
+    return (
+      <main className="ocean-bg flex items-center justify-center min-h-screen">
+        <div className="card text-center max-w-md text-ocean-700">
+          <h2 className="text-xl font-bold mb-2">Chưa có vòng nào đang chiếu</h2>
+          <p>Đợi admin chọn vòng để bắt đầu.</p>
+        </div>
+      </main>
+    );
+  }
+
+  // Render theo round.kind
+  if (round.kind === "quiz") {
+    return <ScreenStage roundId={round.id} round={round} />;
+  }
+  if (round.kind === "panel") {
+    return <PanelLeaderboardScreen round={round} />;
+  }
+  // debate (stage 3 — placeholder)
+  return (
+    <main className="ocean-bg flex items-center justify-center min-h-screen">
+      <div className="text-center text-white drop-shadow text-3xl">
+        🎙️ {round.group?.debate_title ?? "PHẢN BIỆN"}
+        <p className="text-base mt-2 text-ocean-100">Phần thi đang chuẩn bị...</p>
+      </div>
+    </main>
+  );
+}
+
+/**
+ * Màn chiếu BXH cho vòng panel (Chân dung, Nhạy bén) — 2 cột "Vòng" + "Tổng".
+ * Subscribe gm_panel_score realtime để cập nhật khi BGK gửi điểm.
+ */
+function PanelLeaderboardScreen({ round }: { round: RoundWithGroup }) {
+  const [rows, setRows] = useState<RoundLeaderboardRow[]>([]);
+
+  useEffect(() => {
+    const fetchLb = () =>
+      fetch(`/api/round-leaderboard?roundId=${round.id}`)
+        .then((r) => r.json())
+        .then((j) => j.ok && setRows(j.data));
+    fetchLb();
+    const sb = getBrowserClient();
+    const ch = sb
+      .channel(`screen-panel-${round.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "gm_panel_submission", filter: `round_id=eq.${round.id}` }, fetchLb)
+      .subscribe();
+    const i = setInterval(fetchLb, 4000);
+    return () => { sb.removeChannel(ch); clearInterval(i); };
+  }, [round.id]);
+
+  const medals = ["🥇", "🥈", "🥉"];
+  return (
+    <main className="ocean-bg h-screen overflow-hidden p-8 flex flex-col">
+      <header className="text-center mb-4">
+        <h1 className="text-4xl font-bold text-ocean-900 drop-shadow">
+          {round.group?.name ?? "—"} – {round.name}
+        </h1>
+        <div className="text-lg text-ocean-700">Bảng xếp hạng vòng này / Tổng tích lũy</div>
+      </header>
+      <div className="flex-1 glass rounded-2xl px-10 py-6 flex flex-col min-h-0">
+        <div className="grid grid-cols-12 gap-4 px-6 pb-3 border-b-4 border-ocean-300 text-2xl font-bold text-ocean-700 shrink-0">
+          <div className="col-span-1 text-center">#</div>
+          <div className="col-span-6">Thí sinh</div>
+          <div className="col-span-2 text-right">Vòng này</div>
+          <div className="col-span-3 text-right">Tổng tích lũy</div>
+        </div>
+        <div className="flex-1 flex flex-col gap-2 min-h-0 mt-3 overflow-y-auto">
+          {rows.map((r, i) => (
+            <div
+              key={r.contestant_id}
+              className={`grid grid-cols-12 gap-4 items-center px-6 py-3 rounded-2xl border-4 ${
+                i === 0 ? "bg-amber-100 border-amber-400"
+                : i === 1 ? "bg-slate-100 border-slate-400"
+                : i === 2 ? "bg-orange-100 border-orange-400"
+                : "bg-white/85 border-ocean-200"
+              }`}
+            >
+              <div className="col-span-1 text-center font-extrabold text-3xl">
+                {i < 3 ? medals[i] : `${i + 1}`}
+              </div>
+              <div className="col-span-6">
+                <div className="font-bold text-2xl text-ocean-900">{r.full_name}</div>
+                {r.organization && <div className="text-base text-ocean-600">{r.organization}</div>}
+              </div>
+              <div className="col-span-2 text-right font-mono text-2xl text-ocean-700">{r.round_score}đ</div>
+              <div className="col-span-3 text-right font-mono font-extrabold text-3xl text-ocean-800">
+                {r.cumulative_score}đ
+              </div>
+            </div>
+          ))}
+          {rows.length === 0 && (
+            <div className="text-center text-ocean-700 text-xl pt-12">
+              Đang chờ giám khảo chấm điểm...
+            </div>
+          )}
+        </div>
+      </div>
+    </main>
+  );
 }
 
 function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
   const { state, currentQuestion, serverOffsetMs } = useRoundState(roundId);
   const remaining = useCountdown(state, round.question_seconds, serverOffsetMs);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
+  const [leaderboard, setLeaderboard] = useState<RoundLeaderboardRow[]>([]);
   const [powerupUsers, setPowerupUsers] = useState<{ contestant_id: string; full_name: string }[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const lastTickRef = useRef<number>(-1);
@@ -106,10 +213,10 @@ function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
     }
   }, [remaining, state?.phase]);
 
-  // Refresh leaderboard
+  // Refresh leaderboard (dùng /api/round-leaderboard để có cumulative)
   useEffect(() => {
     const fetchLb = () =>
-      fetch(`/api/leaderboard?roundId=${roundId}`)
+      fetch(`/api/round-leaderboard?roundId=${roundId}`)
         .then((r) => r.json())
         .then((j) => j.ok && setLeaderboard(j.data));
     fetchLb();
@@ -245,7 +352,7 @@ function CountdownBig({ remaining, phase }: { remaining: number; phase: string }
   );
 }
 
-function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
+function Leaderboard({ rows }: { rows: RoundLeaderboardRow[] }) {
   const medals = ["🥇", "🥈", "🥉"];
   return (
     <div className="flex-1 glass rounded-2xl px-10 py-6 flex flex-col min-h-0">
@@ -256,7 +363,7 @@ function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
         {rows.map((r, i) => (
           <div
             key={r.contestant_id}
-            className={`flex-1 min-h-0 flex justify-between items-center px-10 rounded-2xl border-4 ${
+            className={`flex-1 min-h-0 grid grid-cols-12 gap-4 items-center px-10 rounded-2xl border-4 ${
               i === 0
                 ? "bg-amber-100 border-amber-400"
                 : i === 1
@@ -266,20 +373,24 @@ function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
                 : "bg-white/85 border-ocean-200"
             }`}
           >
-            <div className="flex items-center gap-6">
-              <span className="font-extrabold text-5xl w-20 text-center shrink-0">
+            <div className="col-span-1 flex items-center justify-center">
+              <span className="font-extrabold text-5xl shrink-0">
                 {i < 3 ? medals[i] : `${i + 1}.`}
               </span>
-              <div>
-                <div className="font-bold text-3xl text-ocean-900 leading-tight">{r.full_name}</div>
-                {r.organization && (
-                  <div className="text-xl text-ocean-600 mt-0.5">{r.organization}</div>
-                )}
-              </div>
             </div>
-            <div className="text-right shrink-0">
-              <span className="font-mono font-extrabold text-5xl text-ocean-800">{r.total_points}</span>
-              <span className="text-2xl font-semibold text-ocean-600 ml-2">điểm</span>
+            <div className="col-span-6">
+              <div className="font-bold text-3xl text-ocean-900 leading-tight">{r.full_name}</div>
+              {r.organization && (
+                <div className="text-xl text-ocean-600 mt-0.5">{r.organization}</div>
+              )}
+            </div>
+            <div className="col-span-2 text-right">
+              <div className="text-xs uppercase text-ocean-600 tracking-wide">Vòng</div>
+              <div className="font-mono font-bold text-3xl text-ocean-700">{r.round_score}đ</div>
+            </div>
+            <div className="col-span-3 text-right">
+              <div className="text-xs uppercase text-ocean-600 tracking-wide">Tổng</div>
+              <div className="font-mono font-extrabold text-5xl text-ocean-800">{r.cumulative_score}đ</div>
             </div>
           </div>
         ))}

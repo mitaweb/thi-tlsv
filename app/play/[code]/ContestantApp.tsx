@@ -13,6 +13,7 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
   const [submitted, setSubmitted] = useState(false);
   const [myAnswer, setMyAnswer] = useState<Answer | null>(null);
   const [myPoints, setMyPoints] = useState<number>(0);
+  const [cumulativeBefore, setCumulativeBefore] = useState<number>(0);
   const [busy, setBusy] = useState(false);
 
   // Power-up state
@@ -21,11 +22,11 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
   const [powerupThisQ, setPowerupThisQ] = useState(false);    // đang áp dụng cho câu hiện tại
   const [activatingPowerup, setActivatingPowerup] = useState(false);
 
-  // Lấy tổng điểm + answer hiện tại
+  // Lấy tổng điểm vòng này + answer hiện tại
   useEffect(() => {
     const sb = getBrowserClient();
     const fetchMine = () =>
-      sb.from("gm_answer").select("*").eq("contestant_id", contestant.id).then(({ data }) => {
+      sb.from("gm_answer").select("*").eq("contestant_id", contestant.id).eq("round_id", round.id).then(({ data }) => {
         const all = (data ?? []) as Answer[];
         setMyPoints(all.filter((a) => a.locked).reduce((s, a) => s + a.points_awarded, 0));
         const curId = state?.current_question_id;
@@ -49,7 +50,17 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
       )
       .subscribe();
     return () => { sb.removeChannel(ch); };
-  }, [contestant.id, state?.current_question_id]);
+  }, [contestant.id, round.id, state?.current_question_id]);
+
+  // Lấy tổng điểm tích lũy TRƯỚC vòng này (từ Chân dung hoặc các vòng trước)
+  useEffect(() => {
+    fetch(`/api/contestant-totals?contestantId=${contestant.id}&beforeRoundId=${round.id}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.ok) setCumulativeBefore(j.total ?? 0);
+      });
+    // Re-fetch khi đổi câu (BGK có thể chốt điểm vòng trước giữa chừng)
+  }, [contestant.id, round.id, state?.current_question_id]);
 
   // Kiểm tra trạng thái power-up từ DB khi mount / đổi câu
   useEffect(() => {
@@ -171,7 +182,12 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
           </div>
           <div className="text-right">
             <div className="text-sm text-ocean-700">Tổng điểm</div>
-            <div className="text-3xl font-mono font-bold text-ocean-800">{myPoints}đ</div>
+            <div className="text-3xl font-mono font-bold text-ocean-800">{cumulativeBefore + myPoints}đ</div>
+            {cumulativeBefore > 0 && (
+              <div className="text-xs text-ocean-600 mt-0.5">
+                (vòng trước: {cumulativeBefore} · vòng này: {myPoints})
+              </div>
+            )}
           </div>
         </header>
 
