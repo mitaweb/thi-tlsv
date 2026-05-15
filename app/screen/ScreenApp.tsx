@@ -174,27 +174,27 @@ function DebateScreen({ round, showTop3 }: { round: RoundWithGroup; showTop3: bo
   const totalSec = state?.debate_duration_sec ?? 0;
 
   return (
-    <main className="debate-bg h-screen overflow-hidden flex flex-col items-center justify-center text-white px-8">
-      {/* Khung nội dung có nền mờ tối để chữ trắng nổi rõ trên ảnh background */}
-      <div className="bg-black/55 backdrop-blur-sm rounded-3xl px-12 py-10 shadow-2xl max-w-5xl w-full flex flex-col items-center">
-        <h1 className="text-5xl md:text-7xl font-extrabold tracking-wider drop-shadow-2xl text-center mb-6">
+    <main className="debate-bg h-screen overflow-hidden flex flex-col items-center justify-center text-ocean-900 px-8">
+      {/* Khung nội dung xanh nhạt (frosted glass) trên ảnh background */}
+      <div className="bg-sky-100/75 backdrop-blur-md rounded-3xl px-12 py-10 shadow-2xl max-w-5xl w-full flex flex-col items-center border-2 border-white/60">
+        <h1 className="text-5xl md:text-7xl font-extrabold tracking-wider drop-shadow text-center mb-6 text-ocean-900">
           {round.group?.debate_title ?? "PHẢN BIỆN"}
         </h1>
 
         {!matchNo ? (
           // Idle: chưa chọn match
-          <div className="text-2xl text-white/85 italic">Đợi Ban Tổ chức bắt đầu phần thi...</div>
+          <div className="text-2xl text-ocean-700 italic">Đợi Ban Tổ chức bắt đầu phần thi...</div>
         ) : (
           <>
             {/* Match info */}
             <div className="text-center mb-6">
-              <div className="text-2xl text-amber-200 font-bold uppercase tracking-wider mb-2">
+              <div className="text-2xl text-amber-700 font-bold uppercase tracking-wider mb-2">
                 Cặp đấu số {matchNo}
               </div>
               {matchPair && (
-                <div className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg">
+                <div className="text-3xl md:text-4xl font-bold text-ocean-900">
                   {matchPair[0].full_name}
-                  <span className="mx-4 text-amber-300">vs</span>
+                  <span className="mx-4 text-amber-600">vs</span>
                   {matchPair[1].full_name}
                 </div>
               )}
@@ -202,20 +202,20 @@ function DebateScreen({ round, showTop3 }: { round: RoundWithGroup; showTop3: bo
 
             {/* Phase label + countdown */}
             {phaseLabel && (
-              <div className="text-3xl md:text-4xl text-white font-bold mb-4 drop-shadow">
+              <div className="text-3xl md:text-4xl text-ocean-800 font-bold mb-4">
                 {phaseLabel}
               </div>
             )}
 
             <div
               className={`text-9xl md:text-[12rem] font-mono font-extrabold px-12 py-6 rounded-3xl shadow-2xl ${
-                isUrgent ? "debate-urgent text-white" : "bg-white/95 text-ocean-900"
+                isUrgent ? "debate-urgent text-white" : "bg-white text-ocean-900"
               }`}
             >
               {state?.phase === "running" && remaining > 0 ? formatMMSS(remaining) : remaining <= 0 && totalSec > 0 ? "HẾT GIỜ" : "—"}
             </div>
 
-            <div className="text-base text-white/80 mt-6">
+            <div className="text-base text-ocean-700 mt-6">
               {totalSec > 0 && `Tối đa ${formatMMSS(totalSec)}`}
             </div>
           </>
@@ -427,51 +427,80 @@ function ScreenStage({ roundId, round, showTop3 }: { roundId: string; round: Rou
               </div>
             )}
 
-            {/* Vùng câu hỏi: flow tự nhiên từ trên xuống (câu ngắn → đáp án sát header).
-                Bỏ căn giữa vertical để câu ngắn không bị tụt giữa màn. */}
-            <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
-              <div className="card w-full flex flex-col gap-4 mt-2">
-                <h2 className="text-3xl md:text-5xl font-bold text-ocean-900 leading-snug">
-                  {currentQuestion.prompt}
-                </h2>
-                {/* Media (ảnh / video) nếu có */}
-                {(currentQuestion as any).media_url && (
-                  (currentQuestion as any).media_type === "video" ? (
-                    <video
-                      key={(currentQuestion as any).media_url}
-                      src={(currentQuestion as any).media_url}
-                      controls
-                      autoPlay
-                      className="max-h-[45vh] w-auto mx-auto rounded-2xl shadow-lg"
-                    />
-                  ) : (
-                    <img
-                      src={(currentQuestion as any).media_url}
-                      alt="Câu hỏi minh họa"
-                      className="max-h-[45vh] w-auto mx-auto rounded-2xl shadow-lg object-contain"
-                    />
-                  )
-                )}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {(["A", "B", "C", "D"] as const).map((k) => {
-                  const text = (currentQuestion as any)["option_" + k.toLowerCase()];
-                  if (!text) return null;
-                  const isAnswer = currentQuestion.correct_option === k;
-                  const cls = effectiveReveal
-                    ? isAnswer
-                      ? "border-emerald-500 bg-emerald-200 text-emerald-900 correct-reveal"
-                      : "border-ocean-200 bg-white/70 opacity-50"
-                    : "border-ocean-300 bg-white/85";
-                  return (
-                    <div key={k} className={`p-5 rounded-2xl border-4 text-2xl md:text-3xl font-semibold ${cls}`}>
-                      <span className="font-extrabold mr-3 text-ocean-700">{k}.</span>
-                      {text}
-                    </div>
-                  );
-                })}
+            {/* Vùng câu hỏi.
+                - Câu không media: flow tự nhiên từ trên (đáp án sát câu hỏi)
+                - Câu có media: card chiếm hết space còn lại, media co/dãn tự động
+                  (flex-1) → đáp án LUÔN hiện ở đáy, không bị khuất */}
+            {(currentQuestion as any).media_url ? (
+              <div className="flex-1 flex flex-col min-h-0 mt-2">
+                <div className="card w-full flex-1 flex flex-col gap-3 min-h-0">
+                  <h2 className="shrink-0 text-2xl md:text-3xl font-bold text-ocean-900 leading-snug">
+                    {currentQuestion.prompt}
+                  </h2>
+                  <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+                    {(currentQuestion as any).media_type === "video" ? (
+                      <video
+                        key={(currentQuestion as any).media_url}
+                        src={(currentQuestion as any).media_url}
+                        controls
+                        autoPlay
+                        className="max-w-full max-h-full rounded-2xl shadow-lg"
+                      />
+                    ) : (
+                      <img
+                        src={(currentQuestion as any).media_url}
+                        alt="Câu hỏi minh họa"
+                        className="max-w-full max-h-full rounded-2xl shadow-lg object-contain"
+                      />
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 shrink-0">
+                    {(["A", "B", "C", "D"] as const).map((k) => {
+                      const text = (currentQuestion as any)["option_" + k.toLowerCase()];
+                      if (!text) return null;
+                      const isAnswer = currentQuestion.correct_option === k;
+                      const cls = effectiveReveal
+                        ? isAnswer
+                          ? "border-emerald-500 bg-emerald-200 text-emerald-900 correct-reveal"
+                          : "border-ocean-200 bg-white/70 opacity-50"
+                        : "border-ocean-300 bg-white/85";
+                      return (
+                        <div key={k} className={`p-3 md:p-4 rounded-xl border-4 text-xl md:text-2xl font-semibold ${cls}`}>
+                          <span className="font-extrabold mr-2 text-ocean-700">{k}.</span>
+                          {text}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex-1 flex flex-col min-h-0">
+                <div className="card w-full flex flex-col gap-4 mt-2">
+                  <h2 className="text-3xl md:text-5xl font-bold text-ocean-900 leading-snug">
+                    {currentQuestion.prompt}
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(["A", "B", "C", "D"] as const).map((k) => {
+                      const text = (currentQuestion as any)["option_" + k.toLowerCase()];
+                      if (!text) return null;
+                      const isAnswer = currentQuestion.correct_option === k;
+                      const cls = effectiveReveal
+                        ? isAnswer
+                          ? "border-emerald-500 bg-emerald-200 text-emerald-900 correct-reveal"
+                          : "border-ocean-200 bg-white/70 opacity-50"
+                        : "border-ocean-300 bg-white/85";
+                      return (
+                        <div key={k} className={`p-5 rounded-2xl border-4 text-2xl md:text-3xl font-semibold ${cls}`}>
+                          <span className="font-extrabold mr-3 text-ocean-700">{k}.</span>
+                          {text}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
