@@ -26,11 +26,16 @@ export async function POST(req: NextRequest) {
   const { error: e1 } = await sb.from("gm_answer").delete().eq("round_id", roundId);
   if (e1) return NextResponse.json({ ok: false, error: e1.message }, { status: 500 });
 
-  // Đặt lại round state
+  // Xóa toàn bộ power-up đã kích hoạt (để thí sinh được dùng lại từ đầu)
+  const { error: e3 } = await sb.from("gm_powerup_use").delete().eq("round_id", roundId);
+  if (e3) return NextResponse.json({ ok: false, error: e3.message }, { status: 500 });
+
+  // Đặt lại round state (phase, câu hiện tại, số thứ tự câu)
   const { error: e2 } = await sb.from("gm_round_state").update({
     phase: "idle",
     current_question_id: null,
     question_started_at: null,
+    question_no: 0,
     show_scoreboard: false,
     updated_at: new Date().toISOString(),
   }).eq("round_id", roundId);
