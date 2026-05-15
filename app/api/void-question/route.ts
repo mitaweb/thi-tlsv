@@ -34,13 +34,21 @@ export async function POST(req: NextRequest) {
 
   if (e1) return NextResponse.json({ ok: false, error: e1.message }, { status: 500 });
 
-  // Trả state về idle, bỏ current_question_id
+  // Đọc question_no hiện tại để giảm đi 1
+  const { data: curState } = await sb
+    .from("gm_round_state")
+    .select("question_no")
+    .eq("round_id", roundId)
+    .single();
+
+  // Trả state về idle, bỏ current_question_id, giảm question_no
   const { error: e2 } = await sb
     .from("gm_round_state")
     .update({
       phase: "idle",
       current_question_id: null,
       question_started_at: null,
+      question_no: Math.max(0, (curState?.question_no ?? 1) - 1),
       updated_at: new Date().toISOString(),
     })
     .eq("round_id", roundId);

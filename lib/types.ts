@@ -5,6 +5,9 @@ export interface Round {
   code: string;
   name: string;
   question_seconds: number;
+  powerup_icon: string;        // '🕊️' | '⭐'
+  powerup_name: string;        // 'Bồ câu' | 'Ngôi sao hi vọng'
+  questions_to_play: number;   // số câu cần thi (mặc định 10)
 }
 
 export interface Contestant {
@@ -35,6 +38,15 @@ export interface RoundState {
   question_started_at: string | null;
   show_scoreboard: boolean;
   updated_at: string;
+  question_no: number;  // số thứ tự câu đang thi trong cuộc thi
+}
+
+export interface PowerupUse {
+  id: string;
+  round_id: string;
+  contestant_id: string;
+  question_id: string;
+  created_at: string;
 }
 
 export interface Answer {

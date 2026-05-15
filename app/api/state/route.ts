@@ -38,14 +38,24 @@ export async function POST(req: NextRequest) {
       if (!questionId) {
         return NextResponse.json({ ok: false, error: "missing questionId" }, { status: 400 });
       }
-      patch = { ...patch, current_question_id: questionId, phase: "running", question_started_at: new Date().toISOString() };
+      // Chỉ tăng question_no nếu chuyển sang câu khác (tránh double-count nếu bấm lại câu cũ)
+      const prevQId = cur?.current_question_id;
+      const newQNo = prevQId === questionId
+        ? (cur?.question_no ?? 1)
+        : (cur?.question_no ?? 0) + 1;
+      patch = {
+        ...patch,
+        current_question_id: questionId,
+        phase: "running",
+        question_started_at: new Date().toISOString(),
+        question_no: newQNo,
+      };
       break;
     case "start":
       patch = { ...patch, phase: "running", question_started_at: new Date().toISOString() };
       break;
     case "reveal": {
       patch = { ...patch, phase: "reveal" };
-      // Khi reveal: lock all answers cho câu hiện tại + auto-insert "no-answer" cho thí sinh chưa submit
       const state = cur ?? (await sb.from("gm_round_state").select("*").eq("round_id", roundId).single()).data;
       const qid = state?.current_question_id;
       if (qid) {
@@ -53,29 +63,58 @@ export async function POST(req: NextRequest) {
         const { data: contestants } = await sb.from("gm_contestant").select("id").eq("round_id", roundId);
         const { data: answered } = await sb.from("gm_answer").select("contestant_id").eq("question_id", qid);
         const answeredSet = new Set((answered ?? []).map((a) => a.contestant_id));
-        const missing =
-          (contestants ?? [])
-            .filter((c) => !answeredSet.has(c.id))
-            .map((c) => ({
-              round_id: roundId,
-              question_id: qid,
-              contestant_id: c.id,
-              selected_option: null,
-              elapsed_ms: 30_000,
-              is_correct: false,
-              points_awarded: 0,
-              locked: true,
-            })) ?? [];
+
+        // Auto-insert câu trả lời trống cho thí sinh chưa submit
+        const missing = (contestants ?? [])
+          .filter((c) => !answeredSet.has(c.id))
+          .map((c) => ({
+            round_id: roundId,
+            question_id: qid,
+            contestant_id: c.id,
+            selected_option: null,
+            elapsed_ms: 30_000,
+            is_correct: false,
+            points_awarded: 0,
+            locked: true,
+          }));
         if (missing.length) await sb.from("gm_answer").insert(missing);
+
         // Lock tất cả answer của câu này
         await sb.from("gm_answer").update({ locked: true }).eq("question_id", qid);
-        // Log
+
+        // Áp dụng power-up bonus cho những thí sinh đã kích hoạt
+        const { data: powerups } = await sb
+          .from("gm_powerup_use")
+          .select("contestant_id")
+          .eq("question_id", qid);
+
+        if (powerups?.length) {
+          const { data: allAnswers } = await sb
+            .from("gm_answer")
+            .select("contestant_id, is_correct, points_awarded")
+            .eq("question_id", qid);
+
+          for (const pu of powerups) {
+            const ans = allAnswers?.find((a) => a.contestant_id === pu.contestant_id);
+            if (ans) {
+              // Đúng: nhân 2 | Sai: trừ 5
+              const newPoints = ans.is_correct ? ans.points_awarded * 2 : -5;
+              await sb
+                .from("gm_answer")
+                .update({ points_awarded: newPoints })
+                .eq("question_id", qid)
+                .eq("contestant_id", pu.contestant_id);
+            }
+          }
+        }
+
+        // Ghi log
         await sb.from("gm_activity_log").insert({
           round_id: roundId,
           question_id: qid,
           actor: "admin",
           action: "reveal",
-          payload: { correct: q?.correct_option },
+          payload: { correct: q?.correct_option, powerup_count: powerups?.length ?? 0 },
         });
       }
       break;

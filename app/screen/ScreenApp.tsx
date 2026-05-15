@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Round, LeaderboardRow } from "@/lib/types";
 import { useRoundState, useCountdown } from "@/lib/useRoundState";
+import { getBrowserClient } from "@/lib/supabase";
 
 export default function ScreenApp() {
   const [rounds, setRounds] = useState<Round[]>([]);
@@ -52,6 +53,7 @@ function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
   const { state, currentQuestion, serverOffsetMs } = useRoundState(roundId);
   const remaining = useCountdown(state, round.question_seconds, serverOffsetMs);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
+  const [powerupUsers, setPowerupUsers] = useState<{ contestant_id: string; full_name: string }[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const lastTickRef = useRef<number>(-1);
   const prevPhaseRef = useRef<string | null>(null);
@@ -115,6 +117,32 @@ function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
     return () => clearInterval(i);
   }, [roundId]);
 
+  // Subscribe power-up activations cho câu hiện tại (Realtime)
+  useEffect(() => {
+    const qid = state?.current_question_id;
+    if (!qid) { setPowerupUsers([]); return; }
+    const sb = getBrowserClient();
+    const fetchPu = () =>
+      sb.from("gm_powerup_use")
+        .select("contestant_id, gm_contestant!inner(full_name, display_order)")
+        .eq("question_id", qid)
+        .then(({ data }) =>
+          setPowerupUsers(
+            (data ?? []).map((d: any) => ({
+              contestant_id: d.contestant_id,
+              full_name: d.gm_contestant?.full_name ?? "?",
+            }))
+          )
+        );
+    fetchPu();
+    const ch = sb
+      .channel(`pu-screen-${qid}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "gm_powerup_use", filter: `question_id=eq.${qid}` }, fetchPu)
+      .subscribe();
+    return () => { sb.removeChannel(ch); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.current_question_id]);
+
   const phase = state?.phase ?? "idle";
   const showLb = phase === "leaderboard" || state?.show_scoreboard;
   // Hiển thị đáp án ngay khi hết giờ (không đợi Realtime phase=reveal)
@@ -130,12 +158,30 @@ function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
         <Leaderboard rows={leaderboard} />
       ) : currentQuestion && phase !== "idle" ? (
         <div className="flex-1 flex flex-col">
-          <div className="flex justify-between items-center mb-4">
+          {/* Hàng trên: số câu + countdown */}
+          <div className="flex justify-between items-center mb-2">
             <div className="text-2xl font-bold text-ocean-800 bg-white/70 px-4 py-2 rounded-xl">
-              Câu {currentQuestion.display_order}
+              Câu {(state?.question_no ?? 0) > 0 ? state!.question_no : currentQuestion.display_order}
+              <span className="text-lg font-semibold text-ocean-600"> / {round.questions_to_play}</span>
             </div>
             <CountdownBig remaining={remaining} phase={phase} />
           </div>
+
+          {/* Thanh power-up: hiển thị ai đã kích hoạt */}
+          {powerupUsers.length > 0 && (
+            <div className="flex items-center gap-3 flex-wrap bg-amber-100/90 backdrop-blur border-2 border-amber-400 rounded-xl px-5 py-2 mb-3">
+              <span className="text-2xl font-bold text-amber-800 shrink-0">
+                {round.powerup_icon} {round.powerup_name}:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {powerupUsers.map((u) => (
+                  <span key={u.contestant_id} className="bg-amber-200 text-amber-900 px-4 py-1 rounded-full text-xl font-semibold">
+                    {u.full_name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="card flex-1 flex flex-col gap-6">
             <h2 className="text-3xl md:text-5xl font-bold text-ocean-900 leading-snug">
