@@ -27,6 +27,9 @@ const ACTION_LABELS: Record<string, string> = {
   phase_idle:              "→ Nghỉ (idle)",
   phase_toggle_scoreboard: "Toggle hiện BXH",
   reset_round:             "⚠️ Reset toàn bộ dữ liệu",
+  void_question:           "🚫 Hủy kết quả câu",
+  powerup_activate:        "🕊️ Kích hoạt power-up",
+  powerup_apply:           "🕊️ Tính power-up",
 };
 
 function actionLabel(action: string) {
@@ -50,8 +53,12 @@ function rowColor(action: string, payload: any) {
     if (payload?.isCorrect === false) return "bg-rose-50";
     return "bg-white";
   }
+  if (action === "powerup_activate") return "bg-amber-50";
+  if (action === "powerup_apply") {
+    return payload?.isCorrect ? "bg-amber-100" : "bg-orange-100";
+  }
   if (action.startsWith("phase_") || action === "reveal") return "bg-ocean-50";
-  if (action === "reset_round") return "bg-amber-100";
+  if (action === "reset_round" || action === "void_question") return "bg-amber-100";
   return "bg-white";
 }
 
@@ -99,6 +106,7 @@ export default function LogsViewer() {
     if (filter === "all") return true;
     if (filter === "answer") return ["submit", "select_option", "change_option"].includes(l.action);
     if (filter === "admin") return l.actor === "admin";
+    if (filter === "powerup") return l.action === "powerup_activate" || l.action === "powerup_apply";
     return true;
   });
 
@@ -147,6 +155,7 @@ export default function LogsViewer() {
           {[
             { key: "all", label: "Tất cả" },
             { key: "answer", label: "Đáp án thí sinh" },
+            { key: "powerup", label: "🕊️ Power-up" },
             { key: "admin", label: "Hành động admin" },
           ].map(({ key, label }) => (
             <button
@@ -202,9 +211,11 @@ export default function LogsViewer() {
                           ? log.payload?.isCorrect
                             ? "bg-emerald-200 text-emerald-800"
                             : "bg-rose-200 text-rose-800"
+                          : log.action === "powerup_activate" || log.action === "powerup_apply"
+                          ? "bg-amber-300 text-amber-900"
                           : log.action.startsWith("phase_") || log.action === "reveal"
                           ? "bg-ocean-200 text-ocean-800"
-                          : log.action === "reset_round"
+                          : log.action === "reset_round" || log.action === "void_question"
                           ? "bg-amber-300 text-amber-900"
                           : "bg-white/70 text-ocean-700 border border-ocean-200"
                       }`}
@@ -213,7 +224,7 @@ export default function LogsViewer() {
                     </span>
                   </td>
                   <td className="px-4 py-2.5 whitespace-nowrap font-mono text-ocean-700">
-                    {["submit", "select_option", "change_option"].includes(log.action)
+                    {["submit", "select_option", "change_option", "powerup_apply"].includes(log.action)
                       ? elapsedLabel(log.elapsed_ms)
                       : "—"}
                   </td>
@@ -227,6 +238,11 @@ export default function LogsViewer() {
                         ) : (
                           <span className="text-rose-700 font-bold">Sai</span>
                         )}
+                        {log.payload.points !== null && log.payload.points !== undefined && (
+                          <span className="ml-1 font-mono font-bold text-ocean-800">
+                            · {String(log.payload.points)}đ
+                          </span>
+                        )}
                       </span>
                     )}
                     {(log.action === "select_option" || log.action === "change_option") && log.payload && (
@@ -236,10 +252,46 @@ export default function LogsViewer() {
                       </span>
                     )}
                     {log.action === "reveal" && log.payload && (
-                      <span>Đáp án đúng: <b>{String(log.payload.correct ?? "—")}</b></span>
+                      <span>
+                        Đáp án đúng: <b>{String(log.payload.correct ?? "—")}</b>
+                        {Number(log.payload.powerup_count) > 0 && (
+                          <span className="ml-2 text-amber-700 font-medium">
+                            · {String(log.payload.powerup_count)} thí sinh dùng power-up
+                          </span>
+                        )}
+                      </span>
                     )}
                     {log.action === "phase_goto" && log.payload && (
                       <span>Câu: {String((log.payload as any).patch?.current_question_id?.slice(0, 8) ?? "—")}…</span>
+                    )}
+                    {log.action === "powerup_activate" && log.payload && (
+                      <span className="text-amber-800">
+                        <b>{String(log.payload.powerup_icon ?? "🕊️")} {String(log.payload.powerup_name ?? "Bồ câu")}</b>
+                        {log.payload.activated_at_question_no != null && (
+                          <span> · kích hoạt ở câu {String(log.payload.activated_at_question_no)} (tính cho câu kế)</span>
+                        )}
+                      </span>
+                    )}
+                    {log.action === "powerup_apply" && log.payload && (
+                      <span className="text-amber-800">
+                        <b>{String(log.payload.powerup_name ?? "🕊️ Bồ câu")}</b>{" · "}
+                        {log.payload.isCorrect ? (
+                          <>
+                            <span className="text-emerald-700 font-bold">Đúng</span>
+                            <span className="ml-1 font-mono">
+                              {String(log.payload.basePoints)}đ ×2 →{" "}
+                              <b className="text-emerald-700">{String(log.payload.finalPoints)}đ</b>
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-rose-700 font-bold">Sai</span>
+                            <span className="ml-1 font-mono">
+                              → <b className="text-rose-700">{String(log.payload.finalPoints)}đ</b>
+                            </span>
+                          </>
+                        )}
+                      </span>
                     )}
                   </td>
                 </tr>

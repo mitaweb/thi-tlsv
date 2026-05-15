@@ -105,7 +105,12 @@ export async function POST(req: NextRequest) {
     contestant_id: contestant.id,
     actor: "contestant",
     action: action === "submit" ? "submit" : existing ? "change_option" : "select_option",
-    payload: { selectedOption, isCorrect, previous: existing?.selected_option ?? null },
+    payload: {
+      selectedOption,
+      isCorrect,
+      previous: existing?.selected_option ?? null,
+      points: action === "submit" ? points : null,
+    },
     elapsed_ms: elapsedMs,
   });
 

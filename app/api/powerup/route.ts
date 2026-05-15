@@ -44,5 +44,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
+  // Lấy thông tin power-up của vòng để ghi log
+  const { data: round } = await sb
+    .from("gm_round")
+    .select("powerup_name, powerup_icon")
+    .eq("id", contestant.round_id)
+    .single();
+
+  // Lấy câu hiện tại để biết kích hoạt ở câu nào
+  const { data: state } = await sb
+    .from("gm_round_state")
+    .select("current_question_id, question_no")
+    .eq("round_id", contestant.round_id)
+    .single();
+
+  await sb.from("gm_activity_log").insert({
+    round_id: contestant.round_id,
+    contestant_id: contestant.id,
+    actor: "contestant",
+    action: "powerup_activate",
+    payload: {
+      powerup_name: round?.powerup_name ?? "Bồ câu",
+      powerup_icon: round?.powerup_icon ?? "🕊️",
+      activated_at_question_no: state?.question_no ?? null,
+    },
+  });
+
   return NextResponse.json({ ok: true });
 }

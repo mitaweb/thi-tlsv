@@ -114,22 +114,48 @@ export async function POST(req: NextRequest) {
           .eq("question_id", qid);
 
         if (powerups?.length) {
+          // Lấy thông tin power-up của vòng để ghi log
+          const { data: roundData } = await sb
+            .from("gm_round")
+            .select("powerup_name, powerup_icon")
+            .eq("id", roundId)
+            .single();
+          const puName = roundData?.powerup_name ?? "Bồ câu";
+
           // Lấy lại sau bước fix để có points chính xác
           const { data: allAnswers } = await sb
             .from("gm_answer")
-            .select("contestant_id, is_correct, points_awarded")
+            .select("contestant_id, is_correct, points_awarded, elapsed_ms")
             .eq("question_id", qid);
 
           for (const pu of powerups) {
             const ans = allAnswers?.find((a) => a.contestant_id === pu.contestant_id);
             if (ans) {
               // Đúng: nhân 2 | Sai: trừ 5
-              const newPoints = ans.is_correct ? ans.points_awarded * 2 : -5;
+              const basePoints = ans.points_awarded;
+              const newPoints = ans.is_correct ? basePoints * 2 : -5;
               await sb
                 .from("gm_answer")
                 .update({ points_awarded: newPoints })
                 .eq("question_id", qid)
                 .eq("contestant_id", pu.contestant_id);
+
+              // Log chi tiết áp dụng power-up cho từng thí sinh
+              await sb.from("gm_activity_log").insert({
+                round_id: roundId,
+                question_id: qid,
+                contestant_id: pu.contestant_id,
+                actor: "system",
+                action: "powerup_apply",
+                payload: {
+                  powerup_name: puName,
+                  isCorrect: ans.is_correct,
+                  basePoints,
+                  finalPoints: newPoints,
+                  delta: newPoints - basePoints,
+                },
+                elapsed_ms: ans.elapsed_ms,
+              });
             }
           }
         }
