@@ -55,6 +55,8 @@ function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const lastTickRef = useRef<number>(-1);
   const prevPhaseRef = useRef<string | null>(null);
+  // Track question ID đã phát fanfare để tránh phát 2 lần
+  const revealPlayedRef = useRef<string | null>(null);
 
   // Init audio context khi mount
   useEffect(() => {
@@ -62,12 +64,25 @@ function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
     return () => { audioCtxRef.current?.close(); };
   }, []);
 
-  // Phát âm thanh fanfare khi phase chuyển sang "reveal"
+  // Phát fanfare NGAY KHI hết giờ (không đợi Realtime từ server)
+  useEffect(() => {
+    const qid = state?.current_question_id;
+    if (state?.phase === "running" && remaining <= 0 && qid && revealPlayedRef.current !== qid) {
+      revealPlayedRef.current = qid;
+      playReveal(audioCtxRef.current);
+    }
+  }, [remaining, state?.phase, state?.current_question_id]);
+
+  // Fallback: phát fanfare nếu server reveal sớm hơn timer (admin bấm tay)
   useEffect(() => {
     const prev = prevPhaseRef.current;
     const cur = state?.phase ?? null;
     if (prev !== "reveal" && cur === "reveal") {
-      playReveal(audioCtxRef.current);
+      const qid = state?.current_question_id ?? null;
+      if (revealPlayedRef.current !== qid) {
+        revealPlayedRef.current = qid;
+        playReveal(audioCtxRef.current);
+      }
     }
     prevPhaseRef.current = cur;
   }, [state?.phase]);
@@ -102,6 +117,8 @@ function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
 
   const phase = state?.phase ?? "idle";
   const showLb = phase === "leaderboard" || state?.show_scoreboard;
+  // Hiển thị đáp án ngay khi hết giờ (không đợi Realtime phase=reveal)
+  const effectiveReveal = phase === "reveal" || (phase === "running" && remaining <= 0);
 
   return (
     <main className="ocean-bg h-screen overflow-hidden p-8 flex flex-col">
@@ -129,8 +146,7 @@ function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
                 const text = (currentQuestion as any)["option_" + k.toLowerCase()];
                 if (!text) return null;
                 const isAnswer = currentQuestion.correct_option === k;
-                const reveal = phase === "reveal";
-                const cls = reveal
+                const cls = effectiveReveal
                   ? isAnswer
                     ? "border-emerald-500 bg-emerald-200 text-emerald-900 correct-reveal"
                     : "border-ocean-200 bg-white/70 opacity-50"
@@ -164,7 +180,7 @@ function CountdownBig({ remaining, phase }: { remaining: number; phase: string }
         danger ? "bg-rose-500 text-white animate-pulse" : "bg-white/85 text-ocean-800"
       }`}
     >
-      {phase === "running" ? Math.ceil(Math.max(0, remaining)) : "—"}
+      {phase === "running" && remaining > 0 ? Math.ceil(remaining) : "—"}
     </div>
   );
 }
