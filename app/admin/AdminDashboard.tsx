@@ -61,23 +61,38 @@ function RoundControl({ roundId, round }: { roundId: string; round: Round }) {
   const [contestants, setContestants] = useState<Contestant[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [currentAnswers, setCurrentAnswers] = useState<any[]>([]);
-  // Câu đã hoàn thành (có locked answer) và câu bị hủy (local)
+  // Câu đã hoàn thành (có locked answer) và câu bị hủy
   const [completedQIds, setCompletedQIds] = useState<Set<string>>(new Set());
   const [voidedQIds, setVoidedQIds] = useState<Set<string>>(new Set());
+  // Nhớ index câu cuối cùng để "Câu kế" không nhảy về đầu sau khi hủy
+  const lastQIdxRef = useRef<number>(-1);
 
   useEffect(() => {
     fetch(`/api/questions?roundId=${roundId}`).then((r) => r.json()).then((j) => j.ok && setQuestions(j.data));
     fetch(`/api/contestants?roundId=${roundId}`).then((r) => r.json()).then((j) => j.ok && setContestants(j.data));
   }, [roundId]);
 
+  // Khôi phục câu đã hủy từ activity_log (để reload trang vẫn nhớ)
+  useEffect(() => {
+    const sb = getBrowserClient();
+    sb.from("gm_activity_log")
+      .select("question_id")
+      .eq("round_id", roundId)
+      .eq("action", "void_question")
+      .then(({ data }) => {
+        const ids = new Set((data ?? []).map((l: any) => l.question_id).filter(Boolean) as string[]);
+        if (ids.size) setVoidedQIds(ids);
+      });
+  }, [roundId]);
+
   // Theo dõi câu đã hoàn thành (có ít nhất 1 locked answer)
   useEffect(() => {
     const sb = getBrowserClient();
-    const fetch = () =>
+    const fetchDone = () =>
       sb.from("gm_answer").select("question_id").eq("round_id", roundId).eq("locked", true)
         .then(({ data }) => setCompletedQIds(new Set((data ?? []).map((a: any) => a.question_id))));
-    fetch();
-    const i = setInterval(fetch, 4000);
+    fetchDone();
+    const i = setInterval(fetchDone, 4000);
     return () => clearInterval(i);
   }, [roundId]);
 
@@ -132,7 +147,13 @@ function RoundControl({ roundId, round }: { roundId: string; round: Round }) {
 
   const phase = state?.phase ?? "idle";
   const currentIdx = questions.findIndex((q) => q.id === state?.current_question_id);
-  const nextQ = questions[currentIdx + 1];
+
+  // Cập nhật vị trí câu cuối khi có câu đang chạy
+  if (currentIdx >= 0) lastQIdxRef.current = currentIdx;
+
+  // Câu kế: tìm câu chưa bị hủy tiếp theo, bắt đầu từ sau câu cuối biết được
+  const baseIdx = currentIdx >= 0 ? currentIdx : lastQIdxRef.current;
+  const nextQ = questions.slice(baseIdx + 1).find((q) => !voidedQIds.has(q.id));
 
   // Số câu hoàn thành thực tế (không tính câu bị hủy)
   const doneCount = [...completedQIds].filter((id) => !voidedQIds.has(id)).length;
