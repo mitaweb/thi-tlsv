@@ -4,12 +4,21 @@ import { isAdminReq } from "@/lib/auth";
 
 /**
  * POST /api/reset
- * Body: { roundId: string }
+ * Body:
+ *   - { roundId: string } → reset 1 vòng theo kind
+ *   - { all: true }       → reset TOÀN BỘ hệ thống (giữ lại thí sinh + câu hỏi)
  *
- * Reset toàn bộ điểm + trạng thái của 1 vòng. Xử lý theo `round.kind`:
- *   - quiz:   xóa gm_answer, gm_powerup_use, reset gm_round_state (phase=idle, question_no=0, current_question_id=null)
- *   - panel:  xóa gm_panel_score, gm_panel_submission, reset gm_round_state về idle
- *   - debate: xóa gm_panel_score, gm_panel_submission, reset gm_round_state (kể cả debate_*)
+ * Reset 1 vòng:
+ *   - quiz:   xóa gm_answer, gm_powerup_use; reset gm_round_state về idle
+ *   - panel:  xóa gm_panel_score, gm_panel_submission; reset gm_round_state về idle
+ *   - debate: như panel + clear debate_*
+ *   - luôn xóa activity log của vòng đó
+ *
+ * Reset toàn bộ:
+ *   - Xóa tất cả gm_answer, gm_powerup_use, gm_panel_score, gm_panel_submission, gm_activity_log
+ *   - Reset tất cả gm_round_state về idle (kể cả debate_*)
+ *   - Clear gm_display_state.current_round_id
+ *   - GIỮ LẠI: gm_round, gm_contestant, gm_question, gm_judge, gm_group
  *
  * Admin-only.
  */
@@ -19,12 +28,53 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { roundId } = body as { roundId?: string };
+  const { roundId, all } = body as { roundId?: string; all?: boolean };
+
+  const sb = getServiceClient();
+
+  // ── Reset TOÀN BỘ ──────────────────────────────────────────────────────
+  if (all) {
+    const ops: any[] = [
+      sb.from("gm_answer").delete().gte("created_at", "1970-01-01").then((r) => r),
+      sb.from("gm_powerup_use").delete().gte("created_at", "1970-01-01").then((r) => r),
+      sb.from("gm_panel_score").delete().gte("created_at", "1970-01-01").then((r) => r),
+      sb.from("gm_panel_submission").delete().gte("submitted_at", "1970-01-01").then((r) => r),
+      sb.from("gm_activity_log").delete().gte("id", 0).then((r) => r),
+    ];
+    const delResults = await Promise.all(ops);
+    for (const r of delResults) {
+      if (r?.error) return NextResponse.json({ ok: false, error: r.error.message }, { status: 500 });
+    }
+
+    // Reset tất cả gm_round_state về idle
+    const { error: stErr } = await sb.from("gm_round_state").update({
+      phase: "idle",
+      current_question_id: null,
+      question_started_at: null,
+      question_no: 0,
+      show_scoreboard: false,
+      debate_match: null,
+      debate_phase: null,
+      debate_started_at: null,
+      debate_duration_sec: null,
+      updated_at: new Date().toISOString(),
+    }).gte("updated_at", "1970-01-01");
+    if (stErr) return NextResponse.json({ ok: false, error: stErr.message }, { status: 500 });
+
+    // Clear màn chiếu hiện tại
+    await sb.from("gm_display_state").update({
+      current_round_id: null,
+      show_scoreboard: false,
+      updated_at: new Date().toISOString(),
+    }).eq("id", 1);
+
+    return NextResponse.json({ ok: true, mode: "all" });
+  }
+
+  // ── Reset 1 vòng ───────────────────────────────────────────────────────
   if (!roundId) {
     return NextResponse.json({ ok: false, error: "missing roundId" }, { status: 400 });
   }
-
-  const sb = getServiceClient();
 
   // Lấy kind của vòng
   const { data: round } = await sb.from("gm_round").select("id, name, kind").eq("id", roundId).maybeSingle();
@@ -41,7 +91,7 @@ export async function POST(req: NextRequest) {
     ops.push(sb.from("gm_panel_submission").delete().eq("round_id", roundId).then((r) => r));
   }
 
-  // Xóa toàn bộ activity log của vòng này (sạch sẽ cho lần thi sau)
+  // Xóa toàn bộ activity log của vòng này
   ops.push(sb.from("gm_activity_log").delete().eq("round_id", roundId).then((r) => r));
 
   // Reset gm_round_state
