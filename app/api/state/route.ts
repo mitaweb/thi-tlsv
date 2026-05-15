@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
       if (!questionId) {
         return NextResponse.json({ ok: false, error: "missing questionId" }, { status: 400 });
       }
-      patch = { ...patch, current_question_id: questionId, phase: "armed", question_started_at: null };
+      patch = { ...patch, current_question_id: questionId, phase: "running", question_started_at: new Date().toISOString() };
       break;
     case "start":
       patch = { ...patch, phase: "running", question_started_at: new Date().toISOString() };
