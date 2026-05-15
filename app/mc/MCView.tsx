@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRoundState, useCountdown, useDebateCountdown } from "@/lib/useRoundState";
 import { getBrowserClient } from "@/lib/supabase";
 import type { Round, Contestant, Answer, RoundLeaderboardRow, Judge, RoundState, Question } from "@/lib/types";
+import UnifiedLeaderboard from "@/components/UnifiedLeaderboard";
 
 interface RoundWithGroup extends Round {
   group?: { id: string; code: string; name: string; debate_title: string | null } | null;
@@ -33,6 +34,8 @@ const MATCH_PAIRS: Record<number, [number, number]> = {
 export default function MCView() {
   const [rounds, setRounds] = useState<RoundWithGroup[]>([]);
   const [roundId, setRoundId] = useState<string | null>(null);
+  const [showScoreboard, setShowScoreboard] = useState(false);
+  const [showTop3, setShowTop3] = useState(false);
 
   // Fetch all rounds (cần cho lookup)
   useEffect(() => {
@@ -41,13 +44,14 @@ export default function MCView() {
       .then((j) => j.ok && setRounds(j.data));
   }, []);
 
-  // Auto-follow display_state.current_round_id
+  // Auto-follow display_state.current_round_id + show_scoreboard + show_top3
   useEffect(() => {
     const sb = getBrowserClient();
     const fetchDs = () =>
-      sb.from("gm_display_state").select("current_round_id").eq("id", 1).maybeSingle().then(({ data }) => {
-        const rid = (data as any)?.current_round_id ?? null;
-        setRoundId(rid);
+      sb.from("gm_display_state").select("current_round_id, show_scoreboard, show_top3").eq("id", 1).maybeSingle().then(({ data }) => {
+        setRoundId((data as any)?.current_round_id ?? null);
+        setShowScoreboard((data as any)?.show_scoreboard === true);
+        setShowTop3((data as any)?.show_top3 === true);
       });
     fetchDs();
     const ch = sb
@@ -81,14 +85,46 @@ export default function MCView() {
     );
   }
 
-  return <MCStage round={round} />;
+  return <MCStage round={round} showScoreboard={showScoreboard} showTop3={showTop3} />;
 }
 
-function MCStage({ round }: { round: RoundWithGroup }) {
+/** Khi admin chiếu BXH, MC cũng hiển thị BXH (UnifiedLeaderboard) */
+function MCLeaderboardOverlay({ round, showTop3 }: { round: RoundWithGroup; showTop3: boolean }) {
+  const [rows, setRows] = useState<RoundLeaderboardRow[]>([]);
+  useEffect(() => {
+    const fetchLb = () =>
+      fetch(`/api/round-leaderboard?roundId=${round.id}`)
+        .then((r) => r.json())
+        .then((j) => j.ok && setRows(j.data));
+    fetchLb();
+    const i = setInterval(fetchLb, 3000);
+    return () => clearInterval(i);
+  }, [round.id]);
+  return (
+    <UnifiedLeaderboard
+      rows={rows}
+      mode={showTop3 ? "top3" : "full"}
+      title={`${round.group?.name ?? ""} – ${round.name}`}
+    />
+  );
+}
+
+function MCStage({
+  round,
+  showScoreboard,
+  showTop3,
+}: {
+  round: RoundWithGroup;
+  showScoreboard: boolean;
+  showTop3: boolean;
+}) {
   // Hoist useRoundState ở 1 nơi duy nhất, pass state xuống children.
-  // Tránh lỗi 'cannot add postgres_changes after subscribe' do nhiều component
-  // cùng subscribe channel `round-state-{roundId}`.
   const { state, currentQuestion, serverOffsetMs } = useRoundState(round.id);
+
+  // Khi admin chiếu BXH → MC cũng chiếu BXH (giống /screen)
+  if (showScoreboard) {
+    return <MCLeaderboardOverlay round={round} showTop3={showTop3} />;
+  }
 
   return (
     <main className="ocean-bg min-h-screen p-4 md:p-6">

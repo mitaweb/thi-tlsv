@@ -167,7 +167,30 @@ export default function DebateRoundControl({
     await fetch("/api/display-state", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ roundId, showScoreboard: !curShow }),
+      body: JSON.stringify({ roundId, showScoreboard: !curShow, showTop3: false }),
+    });
+  }
+
+  const [showTop3State, setShowTop3State] = useState(false);
+  useEffect(() => {
+    const sb = getBrowserClient();
+    const fetchDs = () =>
+      sb.from("gm_display_state").select("show_top3, current_round_id").eq("id", 1).maybeSingle().then(({ data }) => {
+        setShowTop3State((data as any)?.current_round_id === roundId && (data as any)?.show_top3 === true);
+      });
+    fetchDs();
+    const ch = sb
+      .channel(`dr-ds-${roundId}-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "gm_display_state" }, fetchDs)
+      .subscribe();
+    return () => { sb.removeChannel(ch); };
+  }, [roundId]);
+
+  async function toggleTop3() {
+    await fetch("/api/display-state", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ roundId, showTop3: !showTop3State, showScoreboard: true }),
     });
   }
 
@@ -200,6 +223,12 @@ export default function DebateRoundControl({
               </button>
               <button className="btn-secondary" onClick={toggleBxhProjection}>
                 🏆 Chiếu BXH
+              </button>
+              <button
+                className={showTop3State ? "btn-danger" : "btn-secondary"}
+                onClick={toggleTop3}
+              >
+                {showTop3State ? "Ẩn Top 3" : "🥇 Chiếu Top 3"}
               </button>
             </div>
           </div>

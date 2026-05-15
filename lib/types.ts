@@ -69,6 +69,7 @@ export interface DisplayState {
   id: number;
   current_round_id: string | null;
   show_scoreboard: boolean;
+  show_top3: boolean;
   updated_at: string;
 }
 
@@ -91,6 +92,8 @@ export interface Question {
   option_c: string | null;
   option_d: string | null;
   correct_option: "A" | "B" | "C" | "D";
+  media_url: string | null;
+  media_type: "image" | "video" | null;
 }
 
 export interface RoundState {

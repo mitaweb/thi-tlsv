@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Round, RoundLeaderboardRow, Contestant } from "@/lib/types";
 import { useRoundState, useCountdown, useDebateCountdown } from "@/lib/useRoundState";
 import { getBrowserClient } from "@/lib/supabase";
+import UnifiedLeaderboard from "@/components/UnifiedLeaderboard";
 
 const DEBATE_PHASE_LABELS: Record<string, string> = {
   thinking: "🧠 Suy nghĩ",
@@ -18,6 +19,7 @@ interface RoundWithGroup extends Round {
 export default function ScreenApp() {
   const [rounds, setRounds] = useState<RoundWithGroup[]>([]);
   const [roundId, setRoundId] = useState<string | null>(null);
+  const [showTop3, setShowTop3] = useState<boolean>(false);
   const [audioReady, setAudioReady] = useState(false);
 
   // Fetch rounds
@@ -27,14 +29,13 @@ export default function ScreenApp() {
       .then((j) => j.ok && setRounds(j.data));
   }, []);
 
-  // Subscribe gm_display_state → tự follow vòng admin đang chiếu
-  // Cập nhật roundId KỂ CẢ khi current_round_id = null (admin ẩn BXH panel)
+  // Subscribe gm_display_state → tự follow vòng admin đang chiếu + show_top3
   useEffect(() => {
     const sb = getBrowserClient();
     const fetchDs = () =>
-      sb.from("gm_display_state").select("current_round_id").eq("id", 1).maybeSingle().then(({ data }) => {
-        const rid = (data as any)?.current_round_id ?? null;
-        setRoundId(rid);
+      sb.from("gm_display_state").select("current_round_id, show_top3").eq("id", 1).maybeSingle().then(({ data }) => {
+        setRoundId((data as any)?.current_round_id ?? null);
+        setShowTop3((data as any)?.show_top3 === true);
       });
     fetchDs();
     const ch = sb
@@ -75,20 +76,20 @@ export default function ScreenApp() {
 
   // Render theo round.kind
   if (round.kind === "quiz") {
-    return <ScreenStage roundId={round.id} round={round} />;
+    return <ScreenStage roundId={round.id} round={round} showTop3={showTop3} />;
   }
   if (round.kind === "panel") {
-    return <PanelLeaderboardScreen round={round} />;
+    return <PanelLeaderboardScreen round={round} showTop3={showTop3} />;
   }
   // debate
-  return <DebateScreen round={round} />;
+  return <DebateScreen round={round} showTop3={showTop3} />;
 }
 
 /**
  * Màn chiếu vòng phản biện — background.png + title + đồng hồ đếm ngược.
  * Khi show_scoreboard = true → chiếu BXH thay vì timer (tái sử dụng PanelLeaderboardScreen).
  */
-function DebateScreen({ round }: { round: RoundWithGroup }) {
+function DebateScreen({ round, showTop3 }: { round: RoundWithGroup; showTop3: boolean }) {
   const { state, serverOffsetMs } = useRoundState(round.id);
   const remaining = useDebateCountdown(state, serverOffsetMs);
   const [contestants, setContestants] = useState<Contestant[]>([]);
@@ -147,7 +148,7 @@ function DebateScreen({ round }: { round: RoundWithGroup }) {
 
   // Nếu admin bật BXH → render leaderboard panel (chấm sau debate)
   if (state?.show_scoreboard) {
-    return <PanelLeaderboardScreen round={round} />;
+    return <PanelLeaderboardScreen round={round} showTop3={showTop3} />;
   }
 
   const matchNo = state?.debate_match;
@@ -228,9 +229,8 @@ function formatMMSS(sec: number): string {
  * Màn chiếu BXH cho vòng panel (Chân dung, Nhạy bén) — 2 cột "Vòng" + "Tổng".
  * Subscribe gm_panel_score realtime để cập nhật khi BGK gửi điểm.
  */
-function PanelLeaderboardScreen({ round }: { round: RoundWithGroup }) {
+function PanelLeaderboardScreen({ round, showTop3 }: { round: RoundWithGroup; showTop3: boolean }) {
   const [rows, setRows] = useState<RoundLeaderboardRow[]>([]);
-  const isDebate = round.kind === "debate";
 
   useEffect(() => {
     const fetchLb = () =>
@@ -240,109 +240,23 @@ function PanelLeaderboardScreen({ round }: { round: RoundWithGroup }) {
     fetchLb();
     const sb = getBrowserClient();
     const ch = sb
-      .channel(`screen-panel-${round.id}`)
+      .channel(`screen-panel-${round.id}-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "gm_panel_submission", filter: `round_id=eq.${round.id}` }, fetchLb)
       .subscribe();
     const i = setInterval(fetchLb, 4000);
     return () => { sb.removeChannel(ch); clearInterval(i); };
   }, [round.id]);
 
-  const medals = ["🥇", "🥈", "🥉"];
   return (
-    <main className={`${isDebate ? "debate-bg" : "ocean-bg"} h-screen overflow-hidden p-8 flex flex-col`}>
-      <header className="text-center mb-4">
-        <h1 className={`text-4xl font-bold drop-shadow ${isDebate ? "text-white" : "text-ocean-900"}`}>
-          {round.group?.name ?? "—"} – {round.name}
-        </h1>
-        <div className={`text-lg ${isDebate ? "text-white/80" : "text-ocean-700"}`}>
-          {isDebate ? "Bảng xếp hạng phản biện" : "Bảng xếp hạng vòng này / Tổng tích lũy"}
-        </div>
-      </header>
-      <div className="flex-1 glass rounded-2xl px-10 py-6 flex flex-col min-h-0">
-        {isDebate ? (
-          // BXH debate: chỉ 1 cột điểm
-          <>
-            <div className="grid grid-cols-12 gap-4 px-6 pb-3 border-b-4 border-ocean-300 text-2xl font-bold text-ocean-700 shrink-0">
-              <div className="col-span-1 text-center">#</div>
-              <div className="col-span-7">Thí sinh</div>
-              <div className="col-span-4 text-right">Điểm phản biện</div>
-            </div>
-            <div className="flex-1 flex flex-col gap-3 min-h-0 mt-3 justify-center">
-              {rows.map((r, i) => (
-                <div
-                  key={r.contestant_id}
-                  className={`grid grid-cols-12 gap-4 items-center px-8 py-6 rounded-2xl border-4 ${
-                    i === 0 ? "bg-amber-100 border-amber-400"
-                    : i === 1 ? "bg-slate-100 border-slate-400"
-                    : "bg-orange-100 border-orange-400"
-                  }`}
-                >
-                  <div className="col-span-1 text-center font-extrabold text-5xl">
-                    {medals[i] ?? `${i + 1}`}
-                  </div>
-                  <div className="col-span-7">
-                    <div className="font-bold text-3xl text-ocean-900">{r.full_name}</div>
-                    {r.organization && <div className="text-lg text-ocean-600 mt-1">{r.organization}</div>}
-                  </div>
-                  <div className="col-span-4 text-right font-mono font-extrabold text-6xl text-ocean-800">
-                    {r.round_score}<span className="text-3xl ml-1">đ</span>
-                  </div>
-                </div>
-              ))}
-              {rows.length === 0 && (
-                <div className="text-center text-ocean-700 text-xl pt-12">
-                  Đang chờ giám khảo chấm điểm phản biện...
-                </div>
-              )}
-            </div>
-          </>
-        ) : (
-          // BXH panel/quiz: 2 cột (vòng + tổng)
-          <>
-            <div className="grid grid-cols-12 gap-4 px-6 pb-3 border-b-4 border-ocean-300 text-2xl font-bold text-ocean-700 shrink-0">
-              <div className="col-span-1 text-center">#</div>
-              <div className="col-span-6">Thí sinh</div>
-              <div className="col-span-2 text-right">Vòng này</div>
-              <div className="col-span-3 text-right">Tổng tích lũy</div>
-            </div>
-            <div className="flex-1 flex flex-col gap-2 min-h-0 mt-3 overflow-y-auto">
-              {rows.map((r, i) => (
-                <div
-                  key={r.contestant_id}
-                  className={`grid grid-cols-12 gap-4 items-center px-6 py-3 rounded-2xl border-4 ${
-                    i === 0 ? "bg-amber-100 border-amber-400"
-                    : i === 1 ? "bg-slate-100 border-slate-400"
-                    : i === 2 ? "bg-orange-100 border-orange-400"
-                    : "bg-white/85 border-ocean-200"
-                  }`}
-                >
-                  <div className="col-span-1 text-center font-extrabold text-3xl">
-                    {i < 3 ? medals[i] : `${i + 1}`}
-                  </div>
-                  <div className="col-span-6">
-                    <div className="font-bold text-2xl text-ocean-900">{r.full_name}</div>
-                    {r.organization && <div className="text-base text-ocean-600">{r.organization}</div>}
-                  </div>
-                  <div className="col-span-2 text-right font-mono text-2xl text-ocean-700">{r.round_score}đ</div>
-                  <div className="col-span-3 text-right font-mono font-extrabold text-3xl text-ocean-800">
-                    {r.cumulative_score}đ
-                  </div>
-                </div>
-              ))}
-              {rows.length === 0 && (
-                <div className="text-center text-ocean-700 text-xl pt-12">
-                  Đang chờ giám khảo chấm điểm...
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </main>
+    <UnifiedLeaderboard
+      rows={rows}
+      mode={showTop3 ? "top3" : "full"}
+      title={`${round.group?.name ?? ""} – ${round.name}`}
+    />
   );
 }
 
-function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
+function ScreenStage({ roundId, round, showTop3 }: { roundId: string; round: Round; showTop3: boolean }) {
   const { state, currentQuestion, serverOffsetMs } = useRoundState(roundId);
   const remaining = useCountdown(state, round.question_seconds, serverOffsetMs);
   const [leaderboard, setLeaderboard] = useState<RoundLeaderboardRow[]>([]);
@@ -481,12 +395,31 @@ function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
               </div>
             )}
 
-            {/* Vùng câu hỏi: card căn giữa theo chiều dọc trong space còn lại */}
-            <div className="flex-1 flex items-center justify-center min-h-0">
-              <div className="card w-full flex flex-col gap-5">
+            {/* Vùng câu hỏi: flow tự nhiên từ trên xuống (câu ngắn → đáp án sát header).
+                Bỏ căn giữa vertical để câu ngắn không bị tụt giữa màn. */}
+            <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+              <div className="card w-full flex flex-col gap-4 mt-2">
                 <h2 className="text-3xl md:text-5xl font-bold text-ocean-900 leading-snug">
                   {currentQuestion.prompt}
                 </h2>
+                {/* Media (ảnh / video) nếu có */}
+                {(currentQuestion as any).media_url && (
+                  (currentQuestion as any).media_type === "video" ? (
+                    <video
+                      key={(currentQuestion as any).media_url}
+                      src={(currentQuestion as any).media_url}
+                      controls
+                      autoPlay
+                      className="max-h-[45vh] w-auto mx-auto rounded-2xl shadow-lg"
+                    />
+                  ) : (
+                    <img
+                      src={(currentQuestion as any).media_url}
+                      alt="Câu hỏi minh họa"
+                      className="max-h-[45vh] w-auto mx-auto rounded-2xl shadow-lg object-contain"
+                    />
+                  )
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {(["A", "B", "C", "D"] as const).map((k) => {
                   const text = (currentQuestion as any)["option_" + k.toLowerCase()];
@@ -510,10 +443,14 @@ function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
           </div>
         )}
 
-        {/* Bảng xếp hạng — overlay tuyệt đối khi bật */}
+        {/* Bảng xếp hạng — overlay tuyệt đối khi bật, dùng UnifiedLeaderboard */}
         {showLb && (
-          <div className="absolute inset-0 flex flex-col">
-            <Leaderboard rows={leaderboard} />
+          <div className="absolute inset-0">
+            <UnifiedLeaderboard
+              rows={leaderboard}
+              mode={showTop3 ? "top3" : "full"}
+              title={`${(round as any).group?.name ?? ""} – ${round.name}`}
+            />
           </div>
         )}
 

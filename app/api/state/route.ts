@@ -44,11 +44,12 @@ export async function POST(req: NextRequest) {
       const newQNo = prevQId === questionId
         ? (cur?.question_no ?? 1)
         : (cur?.question_no ?? 0) + 1;
+      // Delay 1s để các màn screen/play kịp render trước khi đồng hồ chạy
       patch = {
         ...patch,
         current_question_id: questionId,
         phase: "running",
-        question_started_at: new Date().toISOString(),
+        question_started_at: new Date(Date.now() + 1000).toISOString(),
         question_no: newQNo,
       };
       // Gán power-up đang pending (question_id = null) vào câu mới này
@@ -60,7 +61,8 @@ export async function POST(req: NextRequest) {
         .is("question_id", null);
       break;
     case "start":
-      patch = { ...patch, phase: "running", question_started_at: new Date().toISOString() };
+      // Delay 1s tương tự goto
+      patch = { ...patch, phase: "running", question_started_at: new Date(Date.now() + 1000).toISOString() };
       break;
     case "reveal": {
       patch = { ...patch, phase: "reveal" };

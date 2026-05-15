@@ -86,9 +86,31 @@ function ScoringForm({
   const [existingScores, setExistingScores] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Hội đồng SV bị khóa khi admin công bố BXH (show_scoreboard=true)
+  const [roundPublished, setRoundPublished] = useState(false);
 
   const maxScore =
     judge.role === "bgk" ? (round.scoring_config?.bgk?.max ?? 100) : (round.scoring_config?.council?.max ?? 30);
+
+  // Subscribe gm_round_state để biết khi vòng được công bố
+  useEffect(() => {
+    if (judge.role !== "sv_council") return; // chỉ council mới quan tâm
+    const sb = getBrowserClient();
+    const fetchState = () =>
+      sb.from("gm_round_state").select("show_scoreboard").eq("round_id", round.id).maybeSingle().then(({ data }) => {
+        setRoundPublished((data as any)?.show_scoreboard === true);
+      });
+    fetchState();
+    const ch = sb
+      .channel(`judge-rs-${round.id}-${Math.random().toString(36).slice(2)}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "gm_round_state", filter: `round_id=eq.${round.id}` },
+        fetchState,
+      )
+      .subscribe();
+    return () => { sb.removeChannel(ch); };
+  }, [round.id, judge.role]);
 
   // Fetch contestants + check existing submission + scores
   useEffect(() => {
@@ -220,6 +242,11 @@ function ScoringForm({
             ✓ Bạn đã gửi điểm cho vòng này. Điểm đã khóa, không thể sửa.
           </div>
         )}
+        {!alreadySubmitted && roundPublished && judge.role === "sv_council" && (
+          <div className="mt-2 p-2 rounded-lg bg-amber-100 border border-amber-300 text-amber-800 text-sm font-semibold">
+            ⛔ Ban Tổ chức đã công bố bảng xếp hạng vòng này. Hội đồng Sinh Viên không thể gửi điểm nữa.
+          </div>
+        )}
       </div>
 
       <div className="card space-y-2">
@@ -237,7 +264,7 @@ function ScoringForm({
                 min={0}
                 max={maxScore}
                 step={1}
-                disabled={alreadySubmitted}
+                disabled={alreadySubmitted || (roundPublished && judge.role === "sv_council")}
                 value={scores[c.id] ?? ""}
                 onChange={(e) => {
                   // Chỉ cho số nguyên
@@ -252,7 +279,7 @@ function ScoringForm({
           </div>
         ))}
 
-        {!alreadySubmitted && (
+        {!alreadySubmitted && !(roundPublished && judge.role === "sv_council") && (
           <div className="flex items-center justify-between pt-2">
             <span className="text-sm text-ocean-700">
               {allFilled

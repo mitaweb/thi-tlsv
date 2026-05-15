@@ -21,12 +21,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
   const body = await req.json().catch(() => ({}));
-  const { roundId, showScoreboard } = body as { roundId?: string | null; showScoreboard?: boolean };
+  const { roundId, showScoreboard, showTop3 } = body as {
+    roundId?: string | null;
+    showScoreboard?: boolean;
+    showTop3?: boolean;
+  };
 
   const sb = getServiceClient();
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (roundId !== undefined) patch.current_round_id = roundId;
   if (showScoreboard !== undefined) patch.show_scoreboard = showScoreboard;
+  if (showTop3 !== undefined) {
+    patch.show_top3 = showTop3;
+    // Khi bật top3 → mặc định bật cả BXH (cần leaderboard data)
+    if (showTop3 === true && showScoreboard === undefined) {
+      patch.show_scoreboard = true;
+    }
+  }
 
   const { error } = await sb.from("gm_display_state").update(patch).eq("id", 1);
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
@@ -36,7 +47,7 @@ export async function POST(req: NextRequest) {
     round_id: roundId ?? null,
     actor: "admin",
     action: "display_state_change",
-    payload: { roundId, showScoreboard },
+    payload: { roundId, showScoreboard, showTop3 },
   });
 
   return NextResponse.json({ ok: true });

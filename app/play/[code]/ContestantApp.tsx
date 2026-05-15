@@ -242,6 +242,25 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
 
               <h2 className="text-xl font-bold text-ocean-900">{currentQuestion.prompt}</h2>
 
+              {/* Media (ảnh / video) nếu có */}
+              {(currentQuestion as any).media_url && (
+                (currentQuestion as any).media_type === "video" ? (
+                  <video
+                    key={(currentQuestion as any).media_url}
+                    src={(currentQuestion as any).media_url}
+                    controls
+                    playsInline
+                    className="w-full max-h-64 rounded-lg shadow-md"
+                  />
+                ) : (
+                  <img
+                    src={(currentQuestion as any).media_url}
+                    alt="Minh họa"
+                    className="w-full max-h-64 object-contain rounded-lg shadow-md"
+                  />
+                )
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {(["A", "B", "C", "D"] as const).map((k) => {
                   const text = (currentQuestion as any)["option_" + k.toLowerCase()];

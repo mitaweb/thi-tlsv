@@ -100,15 +100,40 @@ export default function QuizRoundControl({ roundId, round }: { roundId: string; 
     }
   }
 
+  // Track show_top3 từ display_state
+  const [showTop3, setShowTop3] = useState(false);
+  useEffect(() => {
+    const sb = getBrowserClient();
+    const fetchDs = () =>
+      sb.from("gm_display_state").select("show_top3").eq("id", 1).maybeSingle().then(({ data }) => {
+        setShowTop3((data as any)?.show_top3 === true);
+      });
+    fetchDs();
+    const ch = sb
+      .channel(`qr-ds-${roundId}-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "gm_display_state" }, fetchDs)
+      .subscribe();
+    return () => { sb.removeChannel(ch); };
+  }, [roundId]);
+
   async function toggleProjection() {
     // Set gm_display_state.current_round_id = this round, toggle show_scoreboard
     const isShowing = (await getDisplayState()) === roundId && state?.show_scoreboard;
     await fetch("/api/display-state", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ roundId, showScoreboard: !isShowing }),
+      body: JSON.stringify({ roundId, showScoreboard: !isShowing, showTop3: false }),
     });
     await dispatch("toggle_scoreboard");
+  }
+
+  async function toggleTop3() {
+    await fetch("/api/display-state", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ roundId, showTop3: !showTop3, showScoreboard: true }),
+    });
+    if (!state?.show_scoreboard) await dispatch("toggle_scoreboard");
   }
 
   async function getDisplayState(): Promise<string | null> {
@@ -165,6 +190,12 @@ export default function QuizRoundControl({ roundId, round }: { roundId: string; 
             </button>
             <button className="btn-secondary" onClick={toggleProjection}>
               {state?.show_scoreboard ? "Ẩn" : "🏆 Chiếu"} BXH lên trình chiếu
+            </button>
+            <button
+              className={showTop3 ? "btn-danger" : "btn-secondary"}
+              onClick={toggleTop3}
+            >
+              {showTop3 ? "Ẩn Top 3" : "🥇 Chiếu Top 3"}
             </button>
             <button className="btn-ghost" onClick={() => dispatch("idle")}>↺ Idle</button>
           </div>

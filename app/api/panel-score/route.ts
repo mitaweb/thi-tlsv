@@ -76,6 +76,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "already_submitted" }, { status: 409 });
   }
 
+  // 3b. Hội đồng SV: nếu vòng đã công bố BXH → không cho gửi nữa
+  if (judge.role === "sv_council") {
+    const { data: rs } = await sb
+      .from("gm_round_state")
+      .select("show_scoreboard")
+      .eq("round_id", roundId)
+      .maybeSingle();
+    if (rs?.show_scoreboard) {
+      return NextResponse.json({ ok: false, error: "council_locked_published" }, { status: 403 });
+    }
+  }
+
   // 4. Lấy danh sách thí sinh:
   //    - debate: top 3 theo cumulative qua vòng liền kề trước
   //    - panel: toàn bộ thí sinh trong group

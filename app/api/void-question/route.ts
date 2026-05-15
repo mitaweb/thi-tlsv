@@ -34,6 +34,16 @@ export async function POST(req: NextRequest) {
 
   if (e1) return NextResponse.json({ ok: false, error: e1.message }, { status: 500 });
 
+  // Xóa powerup activations của câu này → thí sinh được dùng lại bồ câu ở câu khác
+  // (unique constraint round_id+contestant_id mở ra sau khi delete)
+  const { error: ePu } = await sb
+    .from("gm_powerup_use")
+    .delete()
+    .eq("round_id", roundId)
+    .eq("question_id", questionId);
+
+  if (ePu) return NextResponse.json({ ok: false, error: ePu.message }, { status: 500 });
+
   // Đọc question_no hiện tại để giảm đi 1
   const { data: curState } = await sb
     .from("gm_round_state")

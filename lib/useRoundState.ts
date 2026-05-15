@@ -89,7 +89,9 @@ export function useCountdown(state: RoundState | null, totalSec: number, serverO
   }, []);
   if (state?.phase !== "running" || !state.question_started_at) return totalSec;
   const startMs = new Date(state.question_started_at).getTime();
-  const elapsed = (now - serverOffsetMs - startMs) / 1000;
+  // Clamp elapsed ≥ 0: nếu now < startMs (đang delay 1s sau bấm Bắt đầu),
+  // đồng hồ đứng yên ở totalSec chưa đếm xuống.
+  const elapsed = Math.max(0, (now - serverOffsetMs - startMs) / 1000);
   return Math.max(0, totalSec - elapsed);
 }
 

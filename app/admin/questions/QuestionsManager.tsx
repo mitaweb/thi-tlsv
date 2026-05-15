@@ -95,6 +95,39 @@ export default function QuestionsManager() {
     loadQs();
   }
 
+  async function uploadMedia(questionId: string, file: File) {
+    setStatus("Đang upload media...");
+    const fd = new FormData();
+    fd.append("file", file);
+    const up = await fetch("/api/media/upload", { method: "POST", body: fd });
+    const upJ = await up.json();
+    if (!upJ.ok) {
+      setStatus("Lỗi upload: " + upJ.error);
+      return;
+    }
+    // Gán URL vào question
+    const att = await fetch(`/api/media/${questionId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url: upJ.url, type: upJ.type }),
+    });
+    const attJ = await att.json();
+    if (!attJ.ok) {
+      setStatus("Lỗi gán media: " + attJ.error);
+      return;
+    }
+    setStatus("✓ Đã thêm media.");
+    loadQs();
+  }
+
+  async function deleteMedia(questionId: string) {
+    if (!confirm("Xóa media của câu này?")) return;
+    const r = await fetch(`/api/media/${questionId}`, { method: "DELETE" });
+    const j = await r.json();
+    if (j.ok) loadQs();
+    else alert("Lỗi: " + j.error);
+  }
+
   return (
     <main className="ocean-bg min-h-screen p-6 space-y-4">
       <header className="flex justify-between items-center flex-wrap gap-3">
@@ -160,8 +193,33 @@ export default function QuestionsManager() {
                       return <li key={k} className={ok ? "font-bold text-emerald-700" : ""}>{k.toUpperCase()}. {t}</li>;
                     })}
                   </ul>
+                  {/* Hiển thị media thumbnail nếu có */}
+                  {(q as any).media_url && (
+                    <div className="mt-2 flex items-center gap-2">
+                      {(q as any).media_type === "video" ? (
+                        <video src={(q as any).media_url} className="w-32 h-20 rounded border border-ocean-200 object-cover" />
+                      ) : (
+                        <img src={(q as any).media_url} alt="media" className="w-32 h-20 rounded border border-ocean-200 object-cover" />
+                      )}
+                      <span className="text-xs text-ocean-600">
+                        {(q as any).media_type === "video" ? "🎬 Video" : "🖼 Ảnh"}
+                      </span>
+                      <button onClick={() => deleteMedia(q.id)} className="text-xs text-rose-600 underline">Xóa media</button>
+                    </div>
+                  )}
                 </div>
-                <button onClick={() => deleteOne(q.id)} className="btn-ghost text-rose-600">Xoá</button>
+                <div className="flex flex-col gap-1 shrink-0">
+                  <label className="btn-secondary text-xs cursor-pointer text-center">
+                    📎 {(q as any).media_url ? "Đổi media" : "Add media"}
+                    <input
+                      type="file"
+                      accept="image/*,video/*"
+                      className="hidden"
+                      onChange={(e) => e.target.files?.[0] && uploadMedia(q.id, e.target.files[0])}
+                    />
+                  </label>
+                  <button onClick={() => deleteOne(q.id)} className="btn-ghost text-rose-600 text-xs">Xoá câu</button>
+                </div>
               </div>
             </div>
           ))}

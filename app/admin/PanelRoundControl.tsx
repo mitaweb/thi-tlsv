@@ -66,16 +66,20 @@ export default function PanelRoundControl({ roundId, round }: { roundId: string;
     return () => clearInterval(i);
   }, [roundId]);
 
+  const [showTop3, setShowTop3] = useState(false);
+
   // Subscribe display_state to know if this round is currently projecting
   useEffect(() => {
     const sb = getBrowserClient();
     const fetchDs = () =>
       sb.from("gm_display_state").select("*").eq("id", 1).maybeSingle().then(({ data }) => {
-        setIsProjecting((data as any)?.current_round_id === roundId && (data as any)?.show_scoreboard);
+        const isCurrent = (data as any)?.current_round_id === roundId;
+        setIsProjecting(isCurrent && (data as any)?.show_scoreboard);
+        setShowTop3(isCurrent && (data as any)?.show_top3 === true);
       });
     fetchDs();
     const ch = sb
-      .channel(`ds-${roundId}`)
+      .channel(`ds-${roundId}-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "gm_display_state" }, fetchDs)
       .subscribe();
     return () => { sb.removeChannel(ch); };
@@ -93,6 +97,19 @@ export default function PanelRoundControl({ roundId, round }: { roundId: string;
       body: JSON.stringify({
         roundId: isProjecting ? null : roundId,
         showScoreboard: !isProjecting,
+        showTop3: false,
+      }),
+    });
+  }
+
+  async function toggleTop3() {
+    await fetch("/api/display-state", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        roundId,
+        showTop3: !showTop3,
+        showScoreboard: true,
       }),
     });
   }
@@ -115,6 +132,12 @@ export default function PanelRoundControl({ roundId, round }: { roundId: string;
               onClick={toggleProjection}
             >
               {isProjecting ? "Ẩn BXH" : "🏆 Chiếu BXH lên trình chiếu"}
+            </button>
+            <button
+              className={showTop3 ? "btn-danger" : "btn-secondary"}
+              onClick={toggleTop3}
+            >
+              {showTop3 ? "Ẩn Top 3" : "🥇 Chiếu Top 3"}
             </button>
           </div>
         </div>
