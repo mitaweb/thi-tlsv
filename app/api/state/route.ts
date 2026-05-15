@@ -51,6 +51,13 @@ export async function POST(req: NextRequest) {
         question_started_at: new Date().toISOString(),
         question_no: newQNo,
       };
+      // Gán power-up đang pending (question_id = null) vào câu mới này
+      // Thí sinh đã kích hoạt trước đó sẽ được nhân điểm ở câu này
+      await sb
+        .from("gm_powerup_use")
+        .update({ question_id: questionId })
+        .eq("round_id", roundId)
+        .is("question_id", null);
       break;
     case "start":
       patch = { ...patch, phase: "running", question_started_at: new Date().toISOString() };

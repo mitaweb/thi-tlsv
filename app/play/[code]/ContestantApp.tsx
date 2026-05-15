@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Contestant, Round, Answer } from "@/lib/types";
 import { useRoundState, useCountdown } from "@/lib/useRoundState";
 import { getBrowserClient } from "@/lib/supabase";
@@ -16,8 +16,9 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
   const [busy, setBusy] = useState(false);
 
   // Power-up state
-  const [powerupUsed, setPowerupUsed] = useState(false);       // đã dùng trong vòng này chưa
-  const [powerupThisQ, setPowerupThisQ] = useState(false);     // đang kích hoạt cho câu này
+  const [powerupUsed, setPowerupUsed] = useState(false);      // đã bấm nút trong vòng thi
+  const [powerupPending, setPowerupPending] = useState(false); // đã kích hoạt nhưng chưa gán câu (question_id = null)
+  const [powerupThisQ, setPowerupThisQ] = useState(false);    // đang áp dụng cho câu hiện tại
   const [activatingPowerup, setActivatingPowerup] = useState(false);
 
   // Lấy tổng điểm + answer hiện tại
@@ -61,9 +62,18 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
       .then(({ data }) => {
         if (data) {
           setPowerupUsed(true);
-          setPowerupThisQ(data.question_id === state?.current_question_id);
+          if (data.question_id === null) {
+            // Đã kích hoạt nhưng chờ IT bấm câu tiếp
+            setPowerupPending(true);
+            setPowerupThisQ(false);
+          } else {
+            setPowerupPending(false);
+            // Đang áp dụng cho câu hiện tại nếu question_id trùng
+            setPowerupThisQ(data.question_id === state?.current_question_id);
+          }
         } else {
           setPowerupUsed(false);
+          setPowerupPending(false);
           setPowerupThisQ(false);
         }
       });
@@ -73,7 +83,6 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
   useEffect(() => {
     setSelected(null);
     setSubmitted(false);
-    setPowerupThisQ(false);
   }, [state?.current_question_id]);
 
   const phase = state?.phase ?? "idle";
@@ -118,18 +127,18 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
   }
 
   async function activatePowerup() {
-    if (!currentQuestion || powerupUsed || activatingPowerup || phase !== "running") return;
+    if (powerupUsed || activatingPowerup) return;
     setActivatingPowerup(true);
     try {
       const r = await fetch("/api/powerup", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ accessCode: contestant.access_code, questionId: currentQuestion.id }),
+        body: JSON.stringify({ accessCode: contestant.access_code }),
       });
       const j = await r.json();
       if (j.ok) {
         setPowerupUsed(true);
-        setPowerupThisQ(true);
+        setPowerupPending(true); // chờ câu tiếp theo
       } else if (j.error === "already_used") {
         setPowerupUsed(true);
       } else {
@@ -173,43 +182,47 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
             <>
               {/* Header câu hỏi */}
               <div className="flex justify-between items-center">
-                <div>
-                  <div className="text-sm font-semibold text-ocean-700">
-                    Câu {questionNo > 0 ? questionNo : currentQuestion.display_order} / {round.questions_to_play}
-                  </div>
+                <div className="text-sm font-semibold text-ocean-700">
+                  Câu {questionNo > 0 ? questionNo : currentQuestion.display_order} / {round.questions_to_play}
                 </div>
                 <div className={`text-3xl font-mono font-bold ${remaining <= 5 && phase === "running" ? "text-rose-600 animate-pulse" : "text-ocean-800"}`}>
                   {phase === "running" && remaining > 0 ? Math.ceil(remaining) + "s" : isReveal ? "Hết giờ" : "—"}
                 </div>
               </div>
 
-              {/* Power-up button — hiện từ khi HẾT GIỜ đến khi qua câu kế */}
-              {((phase === "running" && remaining <= 0) || phase === "reveal") && (
-                <div className="flex items-center gap-3 flex-wrap">
-                  <button
-                    disabled={powerupUsed || activatingPowerup || phase === "reveal"}
-                    onClick={activatePowerup}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border-2 transition select-none ${
-                      powerupThisQ
-                        ? "bg-amber-200 border-amber-500 text-amber-800 cursor-default"
-                        : powerupUsed
-                        ? "bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed opacity-60"
-                        : "bg-white border-amber-400 text-amber-700 hover:bg-amber-50 active:scale-95"
-                    }`}
-                  >
-                    <span className="text-xl">{round.powerup_icon}</span>
-                    <span>{round.powerup_name}</span>
-                    {powerupThisQ && <span className="text-xs font-semibold">✓ Đã kích hoạt</span>}
-                    {powerupUsed && !powerupThisQ && <span className="text-xs">Đã dùng</span>}
-                    {!powerupUsed && <span className="text-xs text-amber-600">(1 lần duy nhất)</span>}
-                  </button>
-                  {powerupThisQ && (
-                    <span className="text-xs text-amber-700 font-medium">
-                      Đúng: ×2 điểm · Sai: −5 điểm
-                    </span>
-                  )}
-                </div>
-              )}
+              {/* Power-up button — luôn hiển thị trong suốt vòng thi */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  disabled={powerupUsed || activatingPowerup}
+                  onClick={activatePowerup}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border-2 transition select-none ${
+                    powerupThisQ
+                      ? "bg-amber-200 border-amber-500 text-amber-800 cursor-default"
+                      : powerupPending
+                      ? "bg-amber-100 border-amber-400 text-amber-700 cursor-default"
+                      : powerupUsed
+                      ? "bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed opacity-60"
+                      : "bg-white border-amber-400 text-amber-700 hover:bg-amber-50 active:scale-95"
+                  }`}
+                >
+                  <span className="text-xl">{round.powerup_icon}</span>
+                  <span>{round.powerup_name}</span>
+                  {powerupThisQ && <span className="text-xs font-semibold">✓ Câu này</span>}
+                  {powerupPending && <span className="text-xs font-semibold">✓ Câu tiếp theo</span>}
+                  {powerupUsed && !powerupThisQ && !powerupPending && <span className="text-xs">Đã dùng</span>}
+                  {!powerupUsed && <span className="text-xs text-amber-600">(1 lần · câu tiếp theo)</span>}
+                </button>
+                {powerupThisQ && (
+                  <span className="text-xs text-amber-700 font-medium">
+                    Đúng: ×2 điểm · Sai: −5 điểm
+                  </span>
+                )}
+                {powerupPending && (
+                  <span className="text-xs text-amber-600 font-medium">
+                    Sẽ áp dụng câu tiếp theo
+                  </span>
+                )}
+              </div>
 
               <h2 className="text-xl font-bold text-ocean-900">{currentQuestion.prompt}</h2>
 

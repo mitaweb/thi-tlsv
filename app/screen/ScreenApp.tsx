@@ -117,7 +117,8 @@ function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
     return () => clearInterval(i);
   }, [roundId]);
 
-  // Subscribe power-up activations cho câu hiện tại (Realtime)
+  // Subscribe power-up activations cho câu hiện tại (Realtime theo round)
+  // Khi IT bấm "câu kế", server cập nhật question_id từ null → qid → cần listen UPDATE
   useEffect(() => {
     const qid = state?.current_question_id;
     if (!qid) { setPowerupUsers([]); return; }
@@ -136,8 +137,8 @@ function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
         );
     fetchPu();
     const ch = sb
-      .channel(`pu-screen-${qid}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "gm_powerup_use", filter: `question_id=eq.${qid}` }, fetchPu)
+      .channel(`pu-screen-${roundId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "gm_powerup_use", filter: `round_id=eq.${roundId}` }, fetchPu)
       .subscribe();
     return () => { sb.removeChannel(ch); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
