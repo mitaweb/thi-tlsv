@@ -155,66 +155,79 @@ function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
         <h1 className="text-4xl font-bold text-ocean-900 drop-shadow">{round.name}</h1>
       </header>
 
-      {showLb ? (
-        <Leaderboard rows={leaderboard} />
-      ) : currentQuestion && phase !== "idle" ? (
-        <div className="flex-1 flex flex-col">
-          {/* Hàng trên: số câu + countdown */}
-          <div className="flex justify-between items-center mb-2">
-            <div className="text-2xl font-bold text-ocean-800 bg-white/70 px-4 py-2 rounded-xl">
-              Câu {(state?.question_no ?? 0) > 0 ? state!.question_no : currentQuestion.display_order}
-              <span className="text-lg font-semibold text-ocean-600"> / {round.questions_to_play}</span>
+      <div className="relative flex-1 flex flex-col min-h-0">
+        {/* Câu hỏi — LUÔN render khi có câu, ẩn bằng visibility khi bật BXH.
+            Không dùng unmount/display:none để CSS animation `correct-reveal`
+            không chạy lại khi IT toggle BXH. */}
+        {currentQuestion && phase !== "idle" && (
+          <div className={`flex-1 flex flex-col min-h-0 ${showLb ? "invisible" : ""}`}>
+            {/* Hàng trên: số câu + countdown */}
+            <div className="flex justify-between items-center mb-2">
+              <div className="text-2xl font-bold text-ocean-800 bg-white/70 px-4 py-2 rounded-xl">
+                Câu {(state?.question_no ?? 0) > 0 ? state!.question_no : currentQuestion.display_order}
+                <span className="text-lg font-semibold text-ocean-600"> / {round.questions_to_play}</span>
+              </div>
+              <CountdownBig remaining={remaining} phase={phase} />
             </div>
-            <CountdownBig remaining={remaining} phase={phase} />
-          </div>
 
-          {/* Thanh power-up: hiển thị ai đã kích hoạt */}
-          {powerupUsers.length > 0 && (
-            <div className="flex items-center gap-3 flex-wrap bg-amber-100/90 backdrop-blur border-2 border-amber-400 rounded-xl px-5 py-2 mb-3">
-              <span className="text-2xl font-bold text-amber-800 shrink-0">
-                {round.powerup_icon} {round.powerup_name}:
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {powerupUsers.map((u) => (
-                  <span key={u.contestant_id} className="bg-amber-200 text-amber-900 px-4 py-1 rounded-full text-xl font-semibold">
-                    {u.full_name}
-                  </span>
-                ))}
+            {/* Thanh power-up: hiển thị ai đã kích hoạt */}
+            {powerupUsers.length > 0 && (
+              <div className="flex items-center gap-3 flex-wrap bg-amber-100/90 backdrop-blur border-2 border-amber-400 rounded-xl px-5 py-2 mb-3">
+                <span className="text-2xl font-bold text-amber-800 shrink-0">
+                  {round.powerup_icon} {round.powerup_name}:
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {powerupUsers.map((u) => (
+                    <span key={u.contestant_id} className="bg-amber-200 text-amber-900 px-4 py-1 rounded-full text-xl font-semibold">
+                      {u.full_name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="card flex-1 flex flex-col gap-6 min-h-0">
+              <h2 className="text-3xl md:text-5xl font-bold text-ocean-900 leading-snug">
+                {currentQuestion.prompt}
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-auto">
+                {(["A", "B", "C", "D"] as const).map((k) => {
+                  const text = (currentQuestion as any)["option_" + k.toLowerCase()];
+                  if (!text) return null;
+                  const isAnswer = currentQuestion.correct_option === k;
+                  const cls = effectiveReveal
+                    ? isAnswer
+                      ? "border-emerald-500 bg-emerald-200 text-emerald-900 correct-reveal"
+                      : "border-ocean-200 bg-white/70 opacity-50"
+                    : "border-ocean-300 bg-white/85";
+                  return (
+                    <div key={k} className={`p-5 rounded-2xl border-4 text-2xl md:text-3xl font-semibold ${cls}`}>
+                      <span className="font-extrabold mr-3 text-ocean-700">{k}.</span>
+                      {text}
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          <div className="card flex-1 flex flex-col gap-6">
-            <h2 className="text-3xl md:text-5xl font-bold text-ocean-900 leading-snug">
-              {currentQuestion.prompt}
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-auto">
-              {(["A", "B", "C", "D"] as const).map((k) => {
-                const text = (currentQuestion as any)["option_" + k.toLowerCase()];
-                if (!text) return null;
-                const isAnswer = currentQuestion.correct_option === k;
-                const cls = effectiveReveal
-                  ? isAnswer
-                    ? "border-emerald-500 bg-emerald-200 text-emerald-900 correct-reveal"
-                    : "border-ocean-200 bg-white/70 opacity-50"
-                  : "border-ocean-300 bg-white/85";
-                return (
-                  <div key={k} className={`p-5 rounded-2xl border-4 text-2xl md:text-3xl font-semibold ${cls}`}>
-                    <span className="font-extrabold mr-3 text-ocean-700">{k}.</span>
-                    {text}
-                  </div>
-                );
-              })}
+        {/* Bảng xếp hạng — overlay tuyệt đối khi bật */}
+        {showLb && (
+          <div className="absolute inset-0 flex flex-col">
+            <Leaderboard rows={leaderboard} />
+          </div>
+        )}
+
+        {/* Trạng thái idle (chưa có câu nào) */}
+        {(!currentQuestion || phase === "idle") && !showLb && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="card text-center text-2xl text-ocean-800 max-w-2xl">
+              {phase === "idle" ? "Đang chờ bắt đầu..." : "..."}
             </div>
           </div>
-        </div>
-      ) : (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="card text-center text-2xl text-ocean-800 max-w-2xl">
-            {phase === "idle" ? "Đang chờ bắt đầu..." : "..."}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </main>
   );
 }
