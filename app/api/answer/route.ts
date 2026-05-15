@@ -61,7 +61,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "time over" }, { status: 409 });
   }
   const isCorrect = selectedOption === question.correct_option;
-  const points = action === "submit" ? scoreFromElapsed(elapsedMs, isCorrect) : 0;
+  // Điểm sẽ được tính lại tại lúc công bố để giữ hồi hộp (DB lưu 0)
+  // projectedPoints chỉ dùng cho log (audit) — server sẽ tính lại tại reveal
+  const projectedPoints = action === "submit" ? scoreFromElapsed(elapsedMs, isCorrect) : 0;
+  const storedPoints = 0;
 
   // Check existing answer (locked = không sửa)
   const { data: existing } = await sb
@@ -81,7 +84,7 @@ export async function POST(req: NextRequest) {
         selected_option: selectedOption,
         elapsed_ms: elapsedMs,
         is_correct: isCorrect,
-        points_awarded: points,
+        points_awarded: storedPoints,
         locked: action === "submit",
         submitted_at: new Date().toISOString(),
       })
@@ -94,7 +97,7 @@ export async function POST(req: NextRequest) {
       selected_option: selectedOption,
       elapsed_ms: elapsedMs,
       is_correct: isCorrect,
-      points_awarded: points,
+      points_awarded: storedPoints,
       locked: action === "submit",
     });
   }
@@ -109,16 +112,15 @@ export async function POST(req: NextRequest) {
       selectedOption,
       isCorrect,
       previous: existing?.selected_option ?? null,
-      points: action === "submit" ? points : null,
+      points: action === "submit" ? projectedPoints : null,
     },
     elapsed_ms: elapsedMs,
   });
 
+  // KHÔNG trả về điểm/isCorrect ra client để tránh lộ kết quả qua DevTools
   return NextResponse.json({
     ok: true,
     submitted: action === "submit",
     elapsedMs,
-    points,
-    isCorrect: action === "submit" ? isCorrect : undefined,
   });
 }

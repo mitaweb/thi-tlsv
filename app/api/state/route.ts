@@ -90,18 +90,17 @@ export async function POST(req: NextRequest) {
         // Lock tất cả answer của câu này
         await sb.from("gm_answer").update({ locked: true }).eq("question_id", qid);
 
-        // ── FIX race condition ──────────────────────────────────────────────
-        // Nếu thí sinh chỉ kịp "select" (không submit) trước khi hết giờ,
-        // row có is_correct=true nhưng points_awarded=0 → tính lại điểm.
-        const { data: zeroCorrect } = await sb
+        // ── Tính điểm tại lúc công bố ───────────────────────────────────────
+        // Khi thí sinh submit, server lưu points_awarded=0 (để tổng điểm không
+        // nhảy ngay → giữ hồi hộp). Tại reveal, tính điểm thật cho mọi đáp án
+        // đúng dựa trên elapsed_ms đã lưu.
+        const { data: correctAnswers } = await sb
           .from("gm_answer")
           .select("id, elapsed_ms")
           .eq("question_id", qid)
-          .eq("is_correct", true)
-          .eq("points_awarded", 0)
-          .not("selected_option", "is", null);
+          .eq("is_correct", true);
 
-        for (const row of (zeroCorrect ?? [])) {
+        for (const row of (correctAnswers ?? [])) {
           const pts = scoreFromElapsed(row.elapsed_ms, true);
           await sb.from("gm_answer").update({ points_awarded: pts }).eq("id", row.id);
         }
