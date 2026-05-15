@@ -183,8 +183,8 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
                 </div>
               </div>
 
-              {/* Power-up button */}
-              {phase === "running" && (
+              {/* Power-up button — chỉ hiện khi HẾT GIỜ (remaining = 0) */}
+              {phase === "running" && remaining <= 0 && (
                 <div className="flex items-center gap-3 flex-wrap">
                   <button
                     disabled={powerupUsed || activatingPowerup}

@@ -158,13 +158,14 @@ function RoundControl({ roundId, round }: { roundId: string; round: Round }) {
   // Số câu hoàn thành thực tế (không tính câu bị hủy)
   const doneCount = [...completedQIds].filter((id) => !voidedQIds.has(id)).length;
 
-  // Auto-reveal khi đồng hồ về 0
+  // Auto-reveal sau 3 giây khi đồng hồ về 0 (cho thí sinh kịp chọn power-up)
   const autoRevealedRef = useRef<string | null>(null);
   useEffect(() => {
     const qid = state?.current_question_id;
     if (phase === "running" && remaining <= 0 && qid && autoRevealedRef.current !== qid) {
       autoRevealedRef.current = qid;
-      dispatch("reveal");
+      const t = setTimeout(() => dispatch("reveal"), 3000);
+      return () => clearTimeout(t);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remaining, phase, state?.current_question_id]);
