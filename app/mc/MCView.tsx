@@ -304,7 +304,6 @@ function QuizMC({
 /* ============== PANEL MC (Chân dung, Nhạy bén) ================ */
 function PanelMC({ round }: { round: RoundWithGroup }) {
   const [judges, setJudges] = useState<JudgeProgress[]>([]);
-  const [leaderboard, setLeaderboard] = useState<RoundLeaderboardRow[]>([]);
 
   useEffect(() => {
     const fetchProgress = () =>
@@ -318,16 +317,6 @@ function PanelMC({ round }: { round: RoundWithGroup }) {
       .subscribe();
     const i = setInterval(fetchProgress, 5000);
     return () => { sb.removeChannel(ch); clearInterval(i); };
-  }, [round.id]);
-
-  useEffect(() => {
-    const fetchLb = () =>
-      fetch(`/api/round-leaderboard?roundId=${round.id}`)
-        .then((r) => r.json())
-        .then((j) => j.ok && setLeaderboard(j.data));
-    fetchLb();
-    const i = setInterval(fetchLb, 3000);
-    return () => clearInterval(i);
   }, [round.id]);
 
   const bgkJudges = judges.filter((j) => j.role === "bgk");
@@ -386,36 +375,6 @@ function PanelMC({ round }: { round: RoundWithGroup }) {
         </div>
       </section>
 
-      <section className="card">
-        <h2 className="text-lg font-bold text-ocean-900 mb-2">🏆 Bảng xếp hạng</h2>
-        {leaderboard.length === 0 ? (
-          <div className="text-ocean-600 italic">Chưa có điểm nào được chốt.</div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs text-ocean-600 border-b border-ocean-200">
-                <th className="text-left py-1">#</th>
-                <th className="text-left">Thí sinh</th>
-                <th className="text-right">Vòng này</th>
-                <th className="text-right">Tổng tích lũy</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leaderboard.map((r, i) => (
-                <tr key={r.contestant_id} className="border-t border-ocean-100">
-                  <td className="py-1.5 font-bold">{i + 1}</td>
-                  <td className="py-1.5">
-                    <div className="font-semibold">{r.full_name}</div>
-                    {r.organization && <div className="text-xs text-ocean-600">{r.organization}</div>}
-                  </td>
-                  <td className="text-right font-mono text-ocean-700">{r.round_score}đ</td>
-                  <td className="text-right font-mono font-bold text-ocean-800">{r.cumulative_score}đ</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
     </>
   );
 }
@@ -433,7 +392,6 @@ function DebateMC({
   const remaining = useDebateCountdown(state, serverOffsetMs);
   const [contestants, setContestants] = useState<Contestant[]>([]);
   const [judges, setJudges] = useState<JudgeProgress[]>([]);
-  const [leaderboard, setLeaderboard] = useState<RoundLeaderboardRow[]>([]);
 
   // Top 3
   useEffect(() => {
@@ -468,17 +426,6 @@ function DebateMC({
       .on("postgres_changes", { event: "*", schema: "public", table: "gm_panel_submission", filter: `round_id=eq.${round.id}` }, fetchProgress)
       .subscribe();
     return () => { sb.removeChannel(ch); };
-  }, [round.id]);
-
-  // BXH
-  useEffect(() => {
-    const fetchLb = () =>
-      fetch(`/api/round-leaderboard?roundId=${round.id}`)
-        .then((r) => r.json())
-        .then((j) => j.ok && setLeaderboard(j.data));
-    fetchLb();
-    const i = setInterval(fetchLb, 3000);
-    return () => clearInterval(i);
   }, [round.id]);
 
   const bgkJudges = judges.filter((j) => j.role === "bgk");
@@ -586,34 +533,6 @@ function DebateMC({
         </div>
       </section>
 
-      {/* BXH phản biện - chỉ điểm vòng */}
-      <section className="card">
-        <h2 className="text-lg font-bold text-ocean-900 mb-2">🏆 Bảng xếp hạng phản biện</h2>
-        {leaderboard.length === 0 ? (
-          <div className="text-ocean-600 italic">Chưa có điểm nào được chốt.</div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs text-ocean-600 border-b border-ocean-200">
-                <th className="text-left py-1">#</th>
-                <th className="text-left">Thí sinh</th>
-                <th className="text-right">Điểm phản biện</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leaderboard.map((r, i) => (
-                <tr key={r.contestant_id} className="border-t border-ocean-100">
-                  <td className="py-1.5 font-bold">{["🥇", "🥈", "🥉"][i] ?? i + 1}</td>
-                  <td className="py-1.5">
-                    <div className="font-semibold">{r.full_name}</div>
-                  </td>
-                  <td className="text-right font-mono font-bold text-ocean-800">{r.round_score}đ</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
     </>
   );
 }
