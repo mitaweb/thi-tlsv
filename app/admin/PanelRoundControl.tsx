@@ -212,7 +212,6 @@ export default function PanelRoundControl({ roundId, round }: { roundId: string;
                     <td className="py-1.5 font-bold">{i + 1}</td>
                     <td className="py-1.5">
                       <div className="font-semibold">{r.full_name}</div>
-                      {r.organization && <div className="text-xs text-ocean-600">{r.organization}</div>}
                     </td>
                     <td className="text-right font-mono text-ocean-700">{r.round_score}đ</td>
                     <td className="text-right font-mono font-bold text-ocean-800">{r.cumulative_score}đ</td>

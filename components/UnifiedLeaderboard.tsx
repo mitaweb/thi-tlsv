@@ -68,9 +68,6 @@ export default function UnifiedLeaderboard({
                       <div className={`font-extrabold text-ocean-900 leading-tight ${mode === "top3" ? "text-6xl md:text-7xl" : "text-3xl md:text-4xl"}`}>
                         {r.full_name}
                       </div>
-                      {mode === "full" && r.organization && (
-                        <div className="text-base md:text-lg text-ocean-600 truncate">{r.organization}</div>
-                      )}
                     </div>
                   </div>
 

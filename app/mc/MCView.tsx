@@ -477,7 +477,7 @@ function DebateMC({
       <section className="card">
         <h2 className="text-lg font-bold text-ocean-900 mb-2">🏆 Top 3 vào phản biện</h2>
         <p className="text-xs text-ocean-700 mb-3">
-          Tự chọn theo điểm tích lũy qua vòng liền kề trước. Cập nhật khi BGK chốt vòng trước.
+          Tự chọn theo tổng điểm qua vòng liền kề trước. Cập nhật khi BGK chốt vòng trước.
         </p>
         {contestants.length === 0 ? (
           <div className="text-ocean-600 italic">Chưa xác định được top 3.</div>

@@ -403,7 +403,7 @@ export default function DebateRoundControl({
                 <span className="font-semibold">{c.full_name}</span>
                 {(c as any).cumulative_score !== undefined && (
                   <span className="ml-2 text-xs text-ocean-600 font-mono">
-                    ({(c as any).cumulative_score}đ tích lũy)
+                    (Tổng điểm: {(c as any).cumulative_score}đ)
                   </span>
                 )}
               </div>
