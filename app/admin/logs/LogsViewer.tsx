@@ -41,10 +41,11 @@ function formatTime(iso: string) {
   return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-function elapsedLabel(ms: number | null) {
+function remainingLabel(ms: number | null, totalSec = 30) {
   if (ms === null || ms === undefined) return "—";
-  const s = (ms / 1000).toFixed(2);
-  return `${s}s`;
+  const elapsed = ms / 1000;
+  const remaining = Math.max(0, totalSec - elapsed);
+  return `${remaining.toFixed(2)}s`;
 }
 
 function rowColor(action: string, payload: any) {
@@ -109,6 +110,10 @@ export default function LogsViewer() {
     if (filter === "powerup") return l.action === "powerup_activate" || l.action === "powerup_apply";
     return true;
   });
+
+  // Tổng số giây của 1 câu (mặc định 30s) để tính "thời gian còn lại"
+  const currentRound = rounds.find((r) => r.id === roundId);
+  const questionSeconds = currentRound?.question_seconds ?? 30;
 
   return (
     <main className="ocean-bg min-h-screen p-4 md:p-6 space-y-4">
@@ -225,7 +230,7 @@ export default function LogsViewer() {
                   </td>
                   <td className="px-4 py-2.5 whitespace-nowrap font-mono text-ocean-700">
                     {["submit", "select_option", "change_option", "powerup_apply"].includes(log.action)
-                      ? elapsedLabel(log.elapsed_ms)
+                      ? remainingLabel(log.elapsed_ms, questionSeconds)
                       : "—"}
                   </td>
                   <td className="px-4 py-2.5 text-ocean-600 max-w-xs truncate text-xs">
