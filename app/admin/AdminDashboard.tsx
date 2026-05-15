@@ -123,7 +123,9 @@ export default function AdminDashboard() {
               }`}
               title={`Loại: ${r.kind}`}
             >
-              <span className="opacity-70 mr-1">{r.display_order}.</span>
+              <span className="opacity-70 mr-1 text-xs">
+                {r.group?.code ?? ""} · {r.display_order}.
+              </span>
               {r.name}
               <span className="ml-1 text-xs opacity-70">({kindLabel(r.kind)})</span>
             </button>

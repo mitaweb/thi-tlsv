@@ -3,6 +3,10 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import type { Round } from "@/lib/types";
 
+interface RoundWithGroup extends Round {
+  group?: { code: string; name: string } | null;
+}
+
 type LogEntry = {
   id: string;
   round_id: string;
@@ -30,6 +34,9 @@ const ACTION_LABELS: Record<string, string> = {
   void_question:           "🚫 Hủy kết quả câu",
   powerup_activate:        "🕊️ Kích hoạt power-up",
   powerup_apply:           "🕊️ Tính power-up",
+  judge_submit:            "🧑‍⚖️ Giám khảo gửi điểm",
+  judge_score:             "🧑‍⚖️ Chấm điểm",
+  display_state_change:    "📺 Chuyển vòng trình chiếu",
 };
 
 function actionLabel(action: string) {
@@ -58,13 +65,15 @@ function rowColor(action: string, payload: any) {
   if (action === "powerup_apply") {
     return payload?.isCorrect ? "bg-amber-100" : "bg-orange-100";
   }
-  if (action.startsWith("phase_") || action === "reveal") return "bg-ocean-50";
+  if (action === "judge_submit") return "bg-sky-100";
+  if (action === "judge_score") return "bg-sky-50";
+  if (action.startsWith("phase_") || action === "reveal" || action === "display_state_change") return "bg-ocean-50";
   if (action === "reset_round" || action === "void_question") return "bg-amber-100";
   return "bg-white";
 }
 
 export default function LogsViewer() {
-  const [rounds, setRounds] = useState<Round[]>([]);
+  const [rounds, setRounds] = useState<RoundWithGroup[]>([]);
   const [roundId, setRoundId] = useState<string>("");
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -108,6 +117,7 @@ export default function LogsViewer() {
     if (filter === "answer") return ["submit", "select_option", "change_option"].includes(l.action);
     if (filter === "admin") return l.actor === "admin";
     if (filter === "powerup") return l.action === "powerup_activate" || l.action === "powerup_apply";
+    if (filter === "judge") return l.action === "judge_submit" || l.action === "judge_score" || l.actor === "judge";
     return true;
   });
 
@@ -140,27 +150,32 @@ export default function LogsViewer() {
 
       {/* Bộ lọc */}
       <div className="card flex flex-wrap gap-3 items-center py-4">
-        <div className="flex gap-2">
-          {rounds.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => setRoundId(r.id)}
-              className={`px-4 py-2 rounded-lg font-semibold border-2 text-sm ${
-                roundId === r.id
-                  ? "bg-ocean-600 text-white border-ocean-700"
-                  : "bg-white text-ocean-700 border-ocean-200"
-              }`}
-            >
-              {r.name}
-            </button>
-          ))}
+        <div className="flex gap-2 flex-wrap">
+          {rounds.map((r) => {
+            const prefix = r.group?.code === "SV" ? "SV" : r.group?.code === "THPT" ? "THPT" : null;
+            return (
+              <button
+                key={r.id}
+                onClick={() => setRoundId(r.id)}
+                className={`px-4 py-2 rounded-lg font-semibold border-2 text-sm ${
+                  roundId === r.id
+                    ? "bg-ocean-600 text-white border-ocean-700"
+                    : "bg-white text-ocean-700 border-ocean-200"
+                }`}
+              >
+                {prefix && <span className="text-xs opacity-70 mr-1">{prefix}</span>}
+                {r.name}
+              </button>
+            );
+          })}
         </div>
 
-        <div className="flex gap-2 ml-auto">
+        <div className="flex gap-2 ml-auto flex-wrap">
           {[
             { key: "all", label: "Tất cả" },
             { key: "answer", label: "Đáp án thí sinh" },
             { key: "powerup", label: "🕊️ Power-up" },
+            { key: "judge", label: "🧑‍⚖️ Giám khảo" },
             { key: "admin", label: "Hành động admin" },
           ].map(({ key, label }) => (
             <button
@@ -207,7 +222,13 @@ export default function LogsViewer() {
                     {formatTime(log.created_at)}
                   </td>
                   <td className="px-4 py-2.5 whitespace-nowrap font-semibold text-ocean-900">
-                    {log.actor_name}
+                    {log.action === "judge_submit" && log.payload?.judgeName ? (
+                      <span className="text-sky-700">🧑‍⚖️ {String(log.payload.judgeName)}</span>
+                    ) : log.action === "judge_score" && log.payload?.judgeName ? (
+                      <span className="text-sky-700">{log.actor_name}</span>
+                    ) : (
+                      log.actor_name
+                    )}
                   </td>
                   <td className="px-4 py-2.5 whitespace-nowrap">
                     <span
@@ -218,7 +239,9 @@ export default function LogsViewer() {
                             : "bg-rose-200 text-rose-800"
                           : log.action === "powerup_activate" || log.action === "powerup_apply"
                           ? "bg-amber-300 text-amber-900"
-                          : log.action.startsWith("phase_") || log.action === "reveal"
+                          : log.action === "judge_submit" || log.action === "judge_score"
+                          ? "bg-sky-300 text-sky-900"
+                          : log.action.startsWith("phase_") || log.action === "reveal" || log.action === "display_state_change"
                           ? "bg-ocean-200 text-ocean-800"
                           : log.action === "reset_round" || log.action === "void_question"
                           ? "bg-amber-300 text-amber-900"
@@ -295,6 +318,44 @@ export default function LogsViewer() {
                               → <b className="text-rose-700">{String(log.payload.finalPoints)}đ</b>
                             </span>
                           </>
+                        )}
+                      </span>
+                    )}
+                    {log.action === "judge_score" && log.payload && (
+                      <span className="text-sky-800">
+                        <b>{String(log.payload.judgeName ?? "?")}</b>
+                        {log.payload.role ? (
+                          <span className="ml-1 text-xs opacity-70">
+                            ({String(log.payload.role) === "bgk" ? "BGK" : "Hội đồng SV"})
+                          </span>
+                        ) : null}
+                        {" · "}
+                        <span className="font-mono font-bold text-lg text-sky-900">
+                          {String(log.payload.score)}
+                        </span>
+                        <span className="font-mono text-xs opacity-70">/{String(log.payload.maxScore)}đ</span>
+                      </span>
+                    )}
+                    {log.action === "judge_submit" && log.payload && (
+                      <span className="text-sky-800">
+                        <b>{String(log.payload.judgeName ?? "?")}</b>
+                        {log.payload.role ? (
+                          <span className="ml-1 text-xs opacity-70">
+                            ({String(log.payload.role) === "bgk" ? "BGK" : "Hội đồng SV"})
+                          </span>
+                        ) : null}
+                        {" · đã gửi điểm cho "}
+                        <b>{String(log.payload.count)}</b>
+                        {" thí sinh"}
+                      </span>
+                    )}
+                    {log.action === "display_state_change" && log.payload && (
+                      <span>
+                        Chiếu vòng: <b>{String(log.payload.roundId ?? "—").slice(0, 8)}…</b>
+                        {log.payload.showScoreboard !== undefined && (
+                          <span className="ml-2">
+                            {log.payload.showScoreboard ? "Hiện BXH" : "Ẩn BXH"}
+                          </span>
                         )}
                       </span>
                     )}
