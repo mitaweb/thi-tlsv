@@ -1,58 +1,65 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminReq } from "@/lib/auth";
-import { put } from "@vercel/blob";
+import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 
 /**
  * POST /api/media/upload
  *
- * Multipart form-data với field `file` (image/* hoặc video/*).
- * Trả về { url, type } để admin gán vào gm_question.media_url + media_type.
+ * Client-side upload pattern: browser upload TRỰC TIẾP lên Vercel Blob,
+ * bypass giới hạn 4.5MB của Vercel Function body.
  *
- * Admin-only.
+ * Endpoint này chỉ:
+ *   - generate client token (với content-type whitelist)
+ *   - callback khi upload xong (optional)
+ *
+ * Browser dùng `upload()` từ '@vercel/blob/client' với handleUploadUrl=this route.
+ *
+ * Admin-only auth check ở onBeforeGenerateToken (thay vì check ở handler
+ * vì callback từ Vercel không có cookie admin).
  */
-export const runtime = "nodejs"; // cần Node runtime để xử lý multipart
+export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
-
 export async function POST(req: NextRequest) {
-  if (!isAdminReq(req)) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-
-  let formData: FormData;
+  let body: HandleUploadBody;
   try {
-    formData = await req.formData();
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: "bad_multipart" }, { status: 400 });
+    body = (await req.json()) as HandleUploadBody;
+  } catch {
+    return NextResponse.json({ ok: false, error: "bad_json" }, { status: 400 });
   }
-
-  const file = formData.get("file") as File | null;
-  if (!file) return NextResponse.json({ ok: false, error: "missing_file" }, { status: 400 });
-
-  if (file.size > MAX_SIZE_BYTES) {
-    return NextResponse.json({ ok: false, error: "file_too_large_max_50mb" }, { status: 413 });
-  }
-
-  const mime = file.type || "";
-  let mediaType: "image" | "video";
-  if (mime.startsWith("image/")) mediaType = "image";
-  else if (mime.startsWith("video/")) mediaType = "video";
-  else {
-    return NextResponse.json({ ok: false, error: "unsupported_type_only_image_video" }, { status: 415 });
-  }
-
-  // Tạo tên file unique
-  const ext = file.name.split(".").pop() || (mediaType === "image" ? "jpg" : "mp4");
-  const filename = `question-media/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
   try {
-    const blob = await put(filename, file, {
-      access: "public",
-      contentType: mime,
+    const jsonResponse = await handleUpload({
+      body,
+      request: req,
+      onBeforeGenerateToken: async (_pathname) => {
+        // Auth: chỉ admin cookie mới được tạo upload token
+        if (!isAdminReq(req)) {
+          throw new Error("unauthorized");
+        }
+        return {
+          allowedContentTypes: [
+            "image/jpeg",
+            "image/jpg",
+            "image/png",
+            "image/gif",
+            "image/webp",
+            "video/mp4",
+            "video/webm",
+            "video/quicktime",
+          ],
+          addRandomSuffix: true,
+          // 500 MB max (sửa nếu cần)
+          maximumSizeInBytes: 500 * 1024 * 1024,
+        };
+      },
+      onUploadCompleted: async () => {
+        // No-op: client sẽ gọi /api/media/[questionId] để gán URL vào DB
+      },
     });
-    return NextResponse.json({ ok: true, url: blob.url, type: mediaType });
+    return NextResponse.json(jsonResponse);
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message ?? "upload_failed" }, { status: 500 });
+    const msg = e?.message ?? "upload_failed";
+    return NextResponse.json({ ok: false, error: msg }, { status: msg === "unauthorized" ? 401 : 400 });
   }
 }

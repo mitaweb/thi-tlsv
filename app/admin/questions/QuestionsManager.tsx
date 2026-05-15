@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import * as XLSX from "xlsx";
+import { upload } from "@vercel/blob/client";
 import type { Round, Question } from "@/lib/types";
 
 type NewQ = { prompt: string; option_a: string; option_b: string; option_c: string; option_d: string; correct_option: "A" | "B" | "C" | "D" };
@@ -104,28 +105,43 @@ export default function QuestionsManager() {
   }
 
   async function uploadMedia(questionId: string, file: File) {
-    setStatus("Đang upload media...");
-    const fd = new FormData();
-    fd.append("file", file);
-    const up = await fetch("/api/media/upload", { method: "POST", body: fd });
-    const upJ = await up.json();
-    if (!upJ.ok) {
-      setStatus("Lỗi upload: " + upJ.error);
+    // Validate type sớm để báo lỗi rõ
+    const mime = file.type;
+    const mediaType: "image" | "video" | null = mime.startsWith("image/")
+      ? "image"
+      : mime.startsWith("video/")
+      ? "video"
+      : null;
+    if (!mediaType) {
+      setStatus("Chỉ chấp nhận ảnh/video");
       return;
     }
-    // Gán URL vào question
-    const att = await fetch(`/api/media/${questionId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ url: upJ.url, type: upJ.type }),
-    });
-    const attJ = await att.json();
-    if (!attJ.ok) {
-      setStatus("Lỗi gán media: " + attJ.error);
-      return;
+
+    setStatus(`Đang upload ${(file.size / 1024 / 1024).toFixed(1)}MB...`);
+    try {
+      // Upload TRỰC TIẾP từ browser → Vercel Blob (không qua server, không giới hạn 4.5MB)
+      const blob = await upload(file.name, file, {
+        access: "public",
+        handleUploadUrl: "/api/media/upload",
+        contentType: mime,
+      });
+
+      // Gán URL vào question
+      const att = await fetch(`/api/media/${questionId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url: blob.url, type: mediaType }),
+      });
+      const attJ = await att.json();
+      if (!attJ.ok) {
+        setStatus("Lỗi gán media: " + attJ.error);
+        return;
+      }
+      setStatus("✓ Đã thêm media.");
+      loadQs();
+    } catch (e: any) {
+      setStatus("Lỗi upload: " + (e?.message ?? "unknown"));
     }
-    setStatus("✓ Đã thêm media.");
-    loadQs();
   }
 
   async function deleteMedia(questionId: string) {
