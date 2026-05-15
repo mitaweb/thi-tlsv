@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase";
 import { isAdminReq } from "@/lib/auth";
+import { scoreFromElapsed } from "@/lib/scoring";
 
 /**
  * POST /api/state
@@ -82,6 +83,23 @@ export async function POST(req: NextRequest) {
         // Lock tất cả answer của câu này
         await sb.from("gm_answer").update({ locked: true }).eq("question_id", qid);
 
+        // ── FIX race condition ──────────────────────────────────────────────
+        // Nếu thí sinh chỉ kịp "select" (không submit) trước khi hết giờ,
+        // row có is_correct=true nhưng points_awarded=0 → tính lại điểm.
+        const { data: zeroCorrect } = await sb
+          .from("gm_answer")
+          .select("id, elapsed_ms")
+          .eq("question_id", qid)
+          .eq("is_correct", true)
+          .eq("points_awarded", 0)
+          .not("selected_option", "is", null);
+
+        for (const row of (zeroCorrect ?? [])) {
+          const pts = scoreFromElapsed(row.elapsed_ms, true);
+          await sb.from("gm_answer").update({ points_awarded: pts }).eq("id", row.id);
+        }
+        // ───────────────────────────────────────────────────────────────────
+
         // Áp dụng power-up bonus cho những thí sinh đã kích hoạt
         const { data: powerups } = await sb
           .from("gm_powerup_use")
@@ -89,6 +107,7 @@ export async function POST(req: NextRequest) {
           .eq("question_id", qid);
 
         if (powerups?.length) {
+          // Lấy lại sau bước fix để có points chính xác
           const { data: allAnswers } = await sb
             .from("gm_answer")
             .select("contestant_id, is_correct, points_awarded")

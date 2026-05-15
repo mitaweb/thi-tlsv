@@ -183,11 +183,11 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
                 </div>
               </div>
 
-              {/* Power-up button — chỉ hiện khi HẾT GIỜ (remaining = 0) */}
-              {phase === "running" && remaining <= 0 && (
+              {/* Power-up button — hiện từ khi HẾT GIỜ đến khi qua câu kế */}
+              {((phase === "running" && remaining <= 0) || phase === "reveal") && (
                 <div className="flex items-center gap-3 flex-wrap">
                   <button
-                    disabled={powerupUsed || activatingPowerup}
+                    disabled={powerupUsed || activatingPowerup || phase === "reveal"}
                     onClick={activatePowerup}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border-2 transition select-none ${
                       powerupThisQ
