@@ -21,12 +21,13 @@ export default function ScreenApp() {
   }, []);
 
   // Subscribe gm_display_state → tự follow vòng admin đang chiếu
+  // Cập nhật roundId KỂ CẢ khi current_round_id = null (admin ẩn BXH panel)
   useEffect(() => {
     const sb = getBrowserClient();
     const fetchDs = () =>
       sb.from("gm_display_state").select("current_round_id").eq("id", 1).maybeSingle().then(({ data }) => {
-        const rid = (data as any)?.current_round_id;
-        if (rid) setRoundId(rid);
+        const rid = (data as any)?.current_round_id ?? null;
+        setRoundId(rid);
       });
     fetchDs();
     const ch = sb
