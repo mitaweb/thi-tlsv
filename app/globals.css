@@ -15,10 +15,10 @@ html, body {
 }
 
 .ocean-bg {
-  /* Ảnh nền skyline thành phố — anh upload vào public/bg-hoithi.jpg.
+  /* Ảnh nền skyline thành phố — anh upload vào public/bg-hoithi.png.
      Nếu file chưa có thì gradient màu phía dưới sẽ hiện ra (fallback). */
   background-color: #5ed3ff;
-  background-image: url("/bg-hoithi.jpg");
+  background-image: url("/bg-hoithi.png");
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
@@ -63,7 +63,7 @@ html, body {
    Fallback gradient xanh nước biển nếu file chưa upload. */
 .debate-bg {
   background-color: #06a8df;
-  background-image: url("/bg-hoithi.jpg");
+  background-image: url("/bg-hoithi.png");
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
