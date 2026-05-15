@@ -30,9 +30,9 @@ export default function UnifiedLeaderboard({
         </header>
       )}
 
-      <div className={`flex-1 glass rounded-3xl flex flex-col min-h-0 ${mode === "top3" ? "px-12 py-10 pb-[10vh] justify-center" : "px-10 py-6 pb-[10vh]"}`}>
+      <div className={`flex-1 glass rounded-3xl flex flex-col min-h-0 ${mode === "top3" ? "px-12 py-8 pb-[10vh] justify-center" : "px-10 py-5 pb-6"}`}>
         {/* Header row */}
-        <div className={`grid ${mode === "top3" ? "grid-cols-12 gap-6 pb-4 mb-2" : "grid-cols-12 gap-4 pb-3 mb-3"} border-b-4 border-ocean-300 font-bold text-ocean-700 shrink-0`}>
+        <div className={`grid ${mode === "top3" ? "grid-cols-12 gap-6 pb-4 mb-2" : "grid-cols-12 gap-4 pb-2 mb-2"} border-b-4 border-ocean-300 font-bold text-ocean-700 shrink-0`}>
           <div className={`col-span-7 ${mode === "top3" ? "text-3xl" : "text-2xl"}`}>Thí sinh</div>
           <div className={`col-span-2 text-right ${mode === "top3" ? "text-3xl" : "text-2xl"}`}>Điểm phần thi</div>
           <div className={`col-span-3 text-right ${mode === "top3" ? "text-3xl" : "text-2xl"}`}>Tổng điểm</div>
@@ -44,7 +44,7 @@ export default function UnifiedLeaderboard({
             Đang chờ giám khảo chấm điểm...
           </div>
         ) : (
-          <div className={`flex flex-col ${mode === "top3" ? "gap-6 flex-1 justify-center" : "gap-3 flex-1 overflow-y-auto"} min-h-0`}>
+          <div className={`flex flex-col ${mode === "top3" ? "gap-6 flex-1 justify-center" : "gap-2 flex-1 min-h-0"}`}>
             {list.map((r, i) => {
               const bg =
                 i === 0 ? "bg-amber-100 border-amber-400"
@@ -56,31 +56,31 @@ export default function UnifiedLeaderboard({
                 <div
                   key={r.contestant_id}
                   className={`grid grid-cols-12 gap-4 items-center rounded-2xl border-4 ${bg} ${
-                    mode === "top3" ? "py-8 px-10" : "py-5 px-8"
+                    mode === "top3" ? "py-8 px-10" : "flex-1 min-h-0 px-6"
                   }`}
                 >
                   {/* Tên + medal */}
-                  <div className="col-span-7 flex items-center gap-4">
-                    <span className={`shrink-0 font-extrabold ${mode === "top3" ? "text-7xl" : "text-4xl"}`}>
+                  <div className="col-span-7 flex items-center gap-4 min-h-0">
+                    <span className={`shrink-0 font-extrabold ${mode === "top3" ? "text-7xl" : "text-3xl md:text-4xl"}`}>
                       {i < 3 ? medals[i] : `${i + 1}.`}
                     </span>
                     <div className="min-w-0">
-                      <div className={`font-extrabold text-ocean-900 leading-tight ${mode === "top3" ? "text-6xl md:text-7xl" : "text-4xl md:text-5xl"}`}>
+                      <div className={`font-extrabold text-ocean-900 leading-tight ${mode === "top3" ? "text-6xl md:text-7xl" : "text-3xl md:text-4xl"}`}>
                         {r.full_name}
                       </div>
                       {mode === "full" && r.organization && (
-                        <div className="text-xl text-ocean-600 mt-1 truncate">{r.organization}</div>
+                        <div className="text-base md:text-lg text-ocean-600 truncate">{r.organization}</div>
                       )}
                     </div>
                   </div>
 
                   {/* Điểm phần thi */}
-                  <div className={`col-span-2 text-right font-mono font-extrabold text-ocean-700 ${mode === "top3" ? "text-6xl md:text-7xl" : "text-4xl md:text-5xl"}`}>
+                  <div className={`col-span-2 text-right font-mono font-extrabold text-ocean-700 ${mode === "top3" ? "text-6xl md:text-7xl" : "text-3xl md:text-4xl"}`}>
                     {r.round_score}
                   </div>
 
-                  {/* Tổng tích lũy */}
-                  <div className={`col-span-3 text-right font-mono font-extrabold text-ocean-800 ${mode === "top3" ? "text-7xl md:text-8xl" : "text-5xl md:text-6xl"}`}>
+                  {/* Tổng điểm */}
+                  <div className={`col-span-3 text-right font-mono font-extrabold text-ocean-800 ${mode === "top3" ? "text-7xl md:text-8xl" : "text-4xl md:text-5xl"}`}>
                     {r.cumulative_score}
                   </div>
                 </div>
