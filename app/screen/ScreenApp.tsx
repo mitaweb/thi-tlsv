@@ -54,12 +54,23 @@ function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const lastTickRef = useRef<number>(-1);
+  const prevPhaseRef = useRef<string | null>(null);
 
   // Init audio context khi mount
   useEffect(() => {
     audioCtxRef.current = new AudioContext();
     return () => { audioCtxRef.current?.close(); };
   }, []);
+
+  // Phát âm thanh fanfare khi phase chuyển sang "reveal"
+  useEffect(() => {
+    const prev = prevPhaseRef.current;
+    const cur = state?.phase ?? null;
+    if (prev !== "reveal" && cur === "reveal") {
+      playReveal(audioCtxRef.current);
+    }
+    prevPhaseRef.current = cur;
+  }, [state?.phase]);
 
   // Phát tic-tac mỗi giây nguyên khi remaining ≤ 5
   useEffect(() => {
@@ -93,9 +104,9 @@ function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
   const showLb = phase === "leaderboard" || state?.show_scoreboard;
 
   return (
-    <main className="ocean-bg min-h-screen p-8 flex flex-col">
-      <header className="text-center mb-6">
-        <h1 className="text-3xl md:text-5xl font-bold text-ocean-900 drop-shadow">{round.name}</h1>
+    <main className="ocean-bg h-screen overflow-hidden p-8 flex flex-col">
+      <header className="text-center mb-4">
+        <h1 className="text-4xl font-bold text-ocean-900 drop-shadow">{round.name}</h1>
       </header>
 
       {showLb ? (
@@ -121,8 +132,8 @@ function ScreenStage({ roundId, round }: { roundId: string; round: Round }) {
                 const reveal = phase === "reveal";
                 const cls = reveal
                   ? isAnswer
-                    ? "border-emerald-500 bg-emerald-200 text-emerald-900"
-                    : "border-ocean-200 bg-white/70 opacity-60"
+                    ? "border-emerald-500 bg-emerald-200 text-emerald-900 correct-reveal"
+                    : "border-ocean-200 bg-white/70 opacity-50"
                   : "border-ocean-300 bg-white/85";
                 return (
                   <div key={k} className={`p-5 rounded-2xl border-4 text-2xl md:text-3xl font-semibold ${cls}`}>
@@ -153,40 +164,50 @@ function CountdownBig({ remaining, phase }: { remaining: number; phase: string }
         danger ? "bg-rose-500 text-white animate-pulse" : "bg-white/85 text-ocean-800"
       }`}
     >
-      {phase === "running" ? Math.max(0, remaining).toFixed(1) : "—"}
+      {phase === "running" ? Math.ceil(Math.max(0, remaining)) : "—"}
     </div>
   );
 }
 
 function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
+  const medals = ["🥇", "🥈", "🥉"];
   return (
-    <div className="card flex-1 max-w-4xl mx-auto w-full">
-      <h2 className="text-4xl md:text-5xl font-bold text-center text-ocean-900 mb-6">🏆 Bảng xếp hạng</h2>
-      <ol className="space-y-3">
+    <div className="flex-1 glass rounded-2xl px-10 py-6 flex flex-col min-h-0">
+      <h2 className="text-5xl font-bold text-center text-ocean-900 mb-5 drop-shadow-md shrink-0">
+        🏆 Bảng xếp hạng
+      </h2>
+      <div className="flex-1 flex flex-col gap-3 min-h-0">
         {rows.map((r, i) => (
-          <li
+          <div
             key={r.contestant_id}
-            className={`flex justify-between items-center px-6 py-4 rounded-xl text-2xl ${
+            className={`flex-1 min-h-0 flex justify-between items-center px-10 rounded-2xl border-4 ${
               i === 0
-                ? "bg-amber-200 border-2 border-amber-400"
+                ? "bg-amber-100 border-amber-400"
                 : i === 1
-                ? "bg-slate-200 border-2 border-slate-400"
+                ? "bg-slate-100 border-slate-400"
                 : i === 2
-                ? "bg-orange-200 border-2 border-orange-400"
-                : "bg-white/85"
+                ? "bg-orange-100 border-orange-400"
+                : "bg-white/85 border-ocean-200"
             }`}
           >
-            <div className="flex items-center gap-3">
-              <span className="font-bold text-3xl text-ocean-700 w-12">{i + 1}.</span>
+            <div className="flex items-center gap-6">
+              <span className="font-extrabold text-5xl w-20 text-center shrink-0">
+                {i < 3 ? medals[i] : `${i + 1}.`}
+              </span>
               <div>
-                <div className="font-bold text-ocean-900">{r.full_name}</div>
-                {r.organization && <div className="text-sm text-ocean-700">{r.organization}</div>}
+                <div className="font-bold text-3xl text-ocean-900 leading-tight">{r.full_name}</div>
+                {r.organization && (
+                  <div className="text-xl text-ocean-600 mt-0.5">{r.organization}</div>
+                )}
               </div>
             </div>
-            <span className="font-mono font-extrabold text-3xl text-ocean-800">{r.total_points}</span>
-          </li>
+            <div className="text-right shrink-0">
+              <span className="font-mono font-extrabold text-5xl text-ocean-800">{r.total_points}</span>
+              <span className="text-2xl font-semibold text-ocean-600 ml-2">điểm</span>
+            </div>
+          </div>
         ))}
-      </ol>
+      </div>
     </div>
   );
 }
@@ -216,4 +237,28 @@ function playFinal(ctx: AudioContext | null) {
   o.connect(g).connect(ctx.destination);
   o.start();
   o.stop(ctx.currentTime + 0.55);
+}
+
+/** Fanfare C major arpeggio khi hiện đáp án đúng */
+function playReveal(ctx: AudioContext | null) {
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const notes = [
+    { freq: 523.25, t: 0,    dur: 0.55 }, // C5
+    { freq: 659.25, t: 0.15, dur: 0.55 }, // E5
+    { freq: 783.99, t: 0.30, dur: 0.55 }, // G5
+    { freq: 1046.5, t: 0.50, dur: 0.80 }, // C6
+  ];
+  notes.forEach(({ freq, t, dur }) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.frequency.value = freq;
+    o.type = "sine";
+    g.gain.setValueAtTime(0.001, now + t);
+    g.gain.exponentialRampToValueAtTime(0.38, now + t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, now + t + dur);
+    o.connect(g).connect(ctx.destination);
+    o.start(now + t);
+    o.stop(now + t + dur + 0.05);
+  });
 }

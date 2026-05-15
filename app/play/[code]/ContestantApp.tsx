@@ -56,26 +56,44 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
   const isReveal = phase === "reveal" || phase === "leaderboard";
   const canPick = phase === "running" && !submitted && remaining > 0;
 
-  async function send(action: "select" | "submit", opt: Opt) {
+  function sendSelect(opt: Opt) {
     if (!currentQuestion) return;
-    setBusy(true);
-    const r = await fetch("/api/answer", {
+    // Fire-and-forget: không cần await, không block UI
+    fetch("/api/answer", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         accessCode: contestant.access_code,
         questionId: currentQuestion.id,
         selectedOption: opt,
-        action,
+        action: "select",
       }),
-    });
-    const j = await r.json();
-    setBusy(false);
-    if (!j.ok) {
-      alert("Không gửi được: " + j.error);
-      return;
+    }).catch(() => {});
+  }
+
+  async function sendSubmit(opt: Opt) {
+    if (!currentQuestion) return;
+    setBusy(true);
+    try {
+      const r = await fetch("/api/answer", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          accessCode: contestant.access_code,
+          questionId: currentQuestion.id,
+          selectedOption: opt,
+          action: "submit",
+        }),
+      });
+      const j = await r.json();
+      if (!j.ok) {
+        alert("Không gửi được: " + j.error);
+        return;
+      }
+      setSubmitted(true);
+    } finally {
+      setBusy(false);
     }
-    if (action === "submit") setSubmitted(true);
   }
 
   const optionClass = (k: Opt) => {
@@ -114,7 +132,7 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
                   Câu {currentQuestion.display_order}
                 </div>
                 <div className={`text-3xl font-mono font-bold ${remaining <= 5 ? "text-rose-600 animate-pulse" : "text-ocean-800"}`}>
-                  {phase === "running" ? remaining.toFixed(1) + "s" : isReveal ? "Hết giờ" : "—"}
+                  {phase === "running" ? Math.ceil(remaining) + "s" : isReveal ? "Hết giờ" : "—"}
                 </div>
               </div>
               <h2 className="text-xl font-bold text-ocean-900">{currentQuestion.prompt}</h2>
@@ -129,7 +147,7 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
                       onClick={() => {
                         if (!canPick) return;
                         setSelected(k);
-                        send("select", k);
+                        sendSelect(k);
                       }}
                       className={optionClass(k)}
                     >
@@ -145,7 +163,7 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
                   <button
                     className="btn-primary"
                     disabled={!selected || submitted || busy || phase !== "running"}
-                    onClick={() => selected && send("submit", selected)}
+                    onClick={() => selected && sendSubmit(selected)}
                   >
                     {submitted ? "Đã gửi đáp án" : "Gửi đáp án"}
                   </button>

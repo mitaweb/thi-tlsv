@@ -27,6 +27,7 @@ export default function AdminDashboard() {
         <h1 className="text-2xl md:text-3xl font-bold text-ocean-900">Bảng điều khiển – Hội thi Thủ lĩnh Sinh viên</h1>
         <div className="flex gap-2 items-center">
           <Link href="/admin/questions" className="btn-secondary">Quản lý câu hỏi</Link>
+          <Link href="/admin/logs" className="btn-secondary">📋 Xem log</Link>
           <Link href="/screen" target="_blank" className="btn-secondary">Mở màn trình chiếu</Link>
           <form action="/api/admin/logout" method="post" onSubmit={(e) => { e.preventDefault(); fetch("/api/admin/logout", { method: "POST" }).then(() => location.reload()); }}>
             <button className="btn-ghost text-rose-700">Đăng xuất</button>
@@ -115,7 +116,7 @@ function RoundControl({ roundId, round }: { roundId: string; round: Round }) {
             <div className="text-right">
               <div className="text-sm text-ocean-700">Thời gian còn lại</div>
               <div className={`text-4xl font-mono font-bold ${remaining <= 5 ? "text-rose-600" : "text-ocean-900"}`}>
-                {remaining.toFixed(1)}s
+                {Math.ceil(remaining)}s
               </div>
             </div>
           </div>
@@ -138,6 +139,22 @@ function RoundControl({ roundId, round }: { roundId: string; round: Round }) {
               {state?.show_scoreboard ? "Ẩn" : "Hiện"} BXH trình chiếu
             </button>
             <button className="btn-ghost" onClick={() => dispatch("idle")}>↺ Idle</button>
+            <button
+              className="btn-danger ml-auto"
+              onClick={async () => {
+                if (!confirm(`Xóa toàn bộ điểm và câu trả lời của vòng thi này?\n\nThao tác không thể hoàn tác.`)) return;
+                const r = await fetch("/api/reset", {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ roundId }),
+                });
+                const j = await r.json();
+                if (j.ok) alert("✓ Đã xóa dữ liệu. Hệ thống đã về trạng thái ban đầu.");
+                else alert("Lỗi: " + j.error);
+              }}
+            >
+              🗑 Reset dữ liệu
+            </button>
           </div>
         </div>
 

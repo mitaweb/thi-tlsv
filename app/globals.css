@@ -46,3 +46,12 @@ html, body {
 .option-btn.correct { @apply border-emerald-500 bg-emerald-100 text-emerald-900; }
 .option-btn.wrong { @apply border-rose-500 bg-rose-100 text-rose-900; }
 .option-btn.locked { @apply cursor-not-allowed opacity-90; }
+
+/* Hiệu ứng nhấp nháy đáp án đúng trên màn chiếu */
+@keyframes correctBlink {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0px rgba(16,185,129,0); transform: scale(1); }
+  50%       { opacity: 0.82; box-shadow: 0 0 48px rgba(16,185,129,0.75); transform: scale(1.015); }
+}
+.correct-reveal {
+  animation: correctBlink 0.55s ease-in-out 5;
+}
