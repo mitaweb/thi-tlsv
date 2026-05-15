@@ -143,9 +143,6 @@ function RoundControl({ roundId, round }: { roundId: string; round: Round }) {
             <button className="btn-secondary" disabled={phase !== "running" && phase !== "armed"} onClick={() => dispatch("reveal")}>
               👁 Hiện đáp án
             </button>
-            <button className="btn-secondary" onClick={() => dispatch("leaderboard")}>
-              🏆 Công bố BXH
-            </button>
             <button className="btn-secondary" onClick={() => dispatch("toggle_scoreboard")}>
               {state?.show_scoreboard ? "Ẩn" : "Hiện"} BXH trình chiếu
             </button>
