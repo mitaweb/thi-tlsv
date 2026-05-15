@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase";
+import { getTop3IdsForDebate } from "@/lib/round-scoring";
 
 /**
  * POST /api/panel-score
@@ -75,13 +76,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "already_submitted" }, { status: 409 });
   }
 
-  // 4. Lấy danh sách thí sinh trong group (debate: chỉ 3 thí sinh đầu)
-  let contestantQuery = sb.from("gm_contestant").select("id, full_name, display_order");
-  if (round.group_id) contestantQuery = contestantQuery.eq("group_id", round.group_id);
-  else contestantQuery = contestantQuery.eq("round_id", roundId);
-  const { data: rawContestants } = await contestantQuery.order("display_order");
-  let contestants = rawContestants ?? [];
-  if (round.kind === "debate") contestants = contestants.slice(0, 3);
+  // 4. Lấy danh sách thí sinh:
+  //    - debate: top 3 theo cumulative qua vòng liền kề trước
+  //    - panel: toàn bộ thí sinh trong group
+  let contestants: Array<{ id: string; full_name: string; display_order: number }> = [];
+  if (round.kind === "debate") {
+    const top3Ids = await getTop3IdsForDebate(sb, roundId);
+    if (top3Ids.length === 0) {
+      return NextResponse.json({ ok: false, error: "cannot_determine_top3" }, { status: 400 });
+    }
+    const { data } = await sb
+      .from("gm_contestant")
+      .select("id, full_name, display_order")
+      .in("id", top3Ids);
+    contestants = (data ?? []) as any[];
+  } else {
+    let q = sb.from("gm_contestant").select("id, full_name, display_order");
+    if (round.group_id) q = q.eq("group_id", round.group_id);
+    else q = q.eq("round_id", roundId);
+    const { data } = await q.order("display_order");
+    contestants = (data ?? []) as any[];
+  }
 
   if (!contestants.length) {
     return NextResponse.json({ ok: false, error: "no_contestants" }, { status: 500 });
@@ -101,8 +116,25 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 6. Insert scores + submission + logs (parallel)
+  // 6. Submission làm "lock" atomic, sau đó mới upsert scores
+  // Tránh race: 2 request cùng pass check existingSub → cùng upsert → ghi đè scores
+  // PK constraint trên gm_panel_submission (round_id, judge_id) đảm bảo chỉ 1 request thắng
   const submittedAt = new Date().toISOString();
+
+  // 6a. Insert submission TRƯỚC (làm khóa)
+  const subRes = await sb
+    .from("gm_panel_submission")
+    .insert({ round_id: roundId, judge_id: judge.id, submitted_at: submittedAt });
+
+  if (subRes.error) {
+    // 23505 = unique violation → đã submit trước đó (có thể do race hoặc retry)
+    if (subRes.error.code === "23505") {
+      return NextResponse.json({ ok: false, error: "already_submitted" }, { status: 409 });
+    }
+    return NextResponse.json({ ok: false, error: subRes.error.message }, { status: 500 });
+  }
+
+  // 6b. Submission đã chốt → SAFE để upsert scores (không sợ bị ghi đè bởi request khác)
   const scoreRows = contestants.map((c) => ({
     round_id: roundId,
     contestant_id: c.id,
@@ -112,6 +144,21 @@ export async function POST(req: NextRequest) {
     submitted_at: submittedAt,
   }));
 
+  const scoreRes = await sb
+    .from("gm_panel_score")
+    .upsert(scoreRows, { onConflict: "round_id,contestant_id,judge_id" });
+
+  if (scoreRes.error) {
+    // Rollback: xóa submission để judge có thể submit lại
+    await sb
+      .from("gm_panel_submission")
+      .delete()
+      .eq("round_id", roundId)
+      .eq("judge_id", judge.id);
+    return NextResponse.json({ ok: false, error: scoreRes.error.message }, { status: 500 });
+  }
+
+  // 6c. Logs (fire-and-forget, không chặn response)
   const logRows = contestants.map((c) => ({
     round_id: roundId,
     contestant_id: c.id,
@@ -125,14 +172,6 @@ export async function POST(req: NextRequest) {
       maxScore,
     },
   }));
-
-  const [scoreRes, subRes] = await Promise.all([
-    sb.from("gm_panel_score").upsert(scoreRows, { onConflict: "round_id,contestant_id,judge_id" }),
-    sb.from("gm_panel_submission").insert({ round_id: roundId, judge_id: judge.id, submitted_at: submittedAt }),
-  ]);
-
-  if (scoreRes.error) return NextResponse.json({ ok: false, error: scoreRes.error.message }, { status: 500 });
-  if (subRes.error) return NextResponse.json({ ok: false, error: subRes.error.message }, { status: 500 });
 
   // Log summary + per-contestant (fire & forget để đỡ chặn response)
   sb.from("gm_activity_log").insert([

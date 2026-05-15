@@ -21,9 +21,9 @@ const PHASE_BUTTONS = [
 ] as const;
 
 const MATCH_PAIRS: Record<number, [number, number]> = {
-  1: [0, 1],  // TS1 vs TS2
-  2: [1, 2],  // TS2 vs TS3
-  3: [2, 0],  // TS3 vs TS1
+  1: [0, 1],  // Top1 vs Top2
+  2: [0, 2],  // Top1 vs Top3
+  3: [2, 1],  // Top3 vs Top2
 };
 
 /**
@@ -42,21 +42,52 @@ export default function DebateRoundControl({
 }) {
   const { state, serverOffsetMs } = useRoundState(roundId);
   const remaining = useDebateCountdown(state, serverOffsetMs);
-  const [contestants, setContestants] = useState<Contestant[]>([]);
+  const [contestants, setContestants] = useState<Array<Contestant & { cumulative_score?: number }>>([]);
   const [selectedMatch, setSelectedMatch] = useState<number>(1);
   const [judges, setJudges] = useState<JudgeProgress[]>([]);
   const [leaderboard, setLeaderboard] = useState<RoundLeaderboardRow[]>([]);
   const [isProjecting, setIsProjecting] = useState(false);
 
-  // 3 thí sinh đầu group (phản biện chỉ có 3 người)
+  // Top 3 thí sinh theo cumulative vòng liền kề trước
   useEffect(() => {
+    fetch(`/api/debate-contestants?roundId=${roundId}`)
+      .then((r) => r.json())
+      .then(async (j) => {
+        if (!j.ok || !j.data?.length) {
+          setContestants([]);
+          return;
+        }
+        const ids = j.data.map((d: any) => d.contestant_id);
+        const sb = getBrowserClient();
+        const { data } = await sb.from("gm_contestant").select("*").in("id", ids);
+        // Giữ thứ tự theo điểm (cao→thấp), gắn cumulative_score từ API top3
+        const ordered = j.data.map((top: any) => {
+          const c = (data ?? []).find((x: any) => x.id === top.contestant_id);
+          return c ? { ...c, cumulative_score: top.cumulative_score } : null;
+        }).filter(Boolean);
+        setContestants(ordered as any);
+      });
+    // Re-fetch khi panel_submission đổi (BGK chấm vòng trước xong → top 3 có thể đổi)
     const sb = getBrowserClient();
-    let q = sb.from("gm_contestant").select("*");
-    if (round.group_id) q = q.eq("group_id", round.group_id);
-    q.order("display_order").then(({ data }) => {
-      setContestants(((data ?? []) as Contestant[]).slice(0, 3));
-    });
-  }, [round.group_id]);
+    const ch = sb
+      .channel(`debate-top3-${roundId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "gm_panel_submission" }, () => {
+        fetch(`/api/debate-contestants?roundId=${roundId}`)
+          .then((r) => r.json())
+          .then(async (j) => {
+            if (!j.ok || !j.data?.length) return;
+            const ids = j.data.map((d: any) => d.contestant_id);
+            const { data } = await sb.from("gm_contestant").select("*").in("id", ids);
+            const ordered = j.data.map((top: any) => {
+              const c = (data ?? []).find((x: any) => x.id === top.contestant_id);
+              return c ? { ...c, cumulative_score: top.cumulative_score } : null;
+            }).filter(Boolean);
+            setContestants(ordered as any);
+          });
+      })
+      .subscribe();
+    return () => { sb.removeChannel(ch); };
+  }, [roundId]);
 
   // Tiến độ chấm BGK
   useEffect(() => {
@@ -286,6 +317,9 @@ export default function DebateRoundControl({
 
         <div className="card">
           <h2 className="font-bold text-ocean-800 mb-2">🏆 Bảng xếp hạng phản biện</h2>
+          <p className="text-xs text-ocean-700 mb-2">
+            Chỉ tính điểm vòng phản biện (max 100đ), không bao gồm các vòng trước.
+          </p>
           {leaderboard.length === 0 ? (
             <div className="text-ocean-700 italic">Chưa có điểm nào được chốt.</div>
           ) : (
@@ -294,19 +328,21 @@ export default function DebateRoundControl({
                 <tr className="text-xs text-ocean-600 border-b border-ocean-200">
                   <th className="text-left py-1">#</th>
                   <th className="text-left">Thí sinh</th>
-                  <th className="text-right">Vòng này</th>
-                  <th className="text-right">Tổng (chung cuộc)</th>
+                  <th className="text-right">Điểm phản biện</th>
                 </tr>
               </thead>
               <tbody>
                 {leaderboard.map((r, i) => (
                   <tr key={r.contestant_id} className="border-t border-ocean-100">
-                    <td className="py-1.5 font-bold">{i + 1}</td>
+                    <td className="py-1.5 font-bold">
+                      {["🥇", "🥈", "🥉"][i] ?? i + 1}
+                    </td>
                     <td className="py-1.5">
                       <div className="font-semibold">{r.full_name}</div>
                     </td>
-                    <td className="text-right font-mono text-ocean-700">{r.round_score}đ</td>
-                    <td className="text-right font-mono font-bold text-ocean-800">{r.cumulative_score}đ</td>
+                    <td className="text-right font-mono font-bold text-ocean-800">
+                      {r.round_score}đ
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -317,19 +353,36 @@ export default function DebateRoundControl({
 
       <div className="space-y-4">
         <div className="card">
-          <h2 className="font-bold text-ocean-800 mb-2">3 thí sinh phản biện</h2>
+          <h2 className="font-bold text-ocean-800 mb-2">🏆 Top 3 vào phản biện</h2>
           <p className="text-xs text-ocean-700 mb-2">
-            Mặc định lấy 3 thí sinh đầu (theo display_order). Có thể chỉnh display_order trong DB nếu cần thay đổi.
+            Hệ thống tự chọn 3 thí sinh điểm cao nhất từ vòng liền kề trước.
+            Cập nhật tự động khi BGK chốt điểm vòng trước.
           </p>
           <div className="space-y-1">
-            {contestants.map((c) => (
-              <div key={c.id} className="p-2 rounded-lg bg-white/70 text-sm">
-                <span className="font-bold mr-2">{c.display_order}.</span>
-                {c.full_name}
+            {contestants.map((c, i) => (
+              <div
+                key={c.id}
+                className={`p-2 rounded-lg text-sm border-2 ${
+                  i === 0 ? "bg-amber-50 border-amber-300"
+                  : i === 1 ? "bg-slate-50 border-slate-300"
+                  : "bg-orange-50 border-orange-300"
+                }`}
+              >
+                <span className="font-bold mr-2">
+                  {["🥇", "🥈", "🥉"][i] ?? `${i + 1}.`}
+                </span>
+                <span className="font-semibold">{c.full_name}</span>
+                {(c as any).cumulative_score !== undefined && (
+                  <span className="ml-2 text-xs text-ocean-600 font-mono">
+                    ({(c as any).cumulative_score}đ tích lũy)
+                  </span>
+                )}
               </div>
             ))}
             {contestants.length < 3 && (
-              <div className="text-xs text-rose-600">⚠ Cần đủ 3 thí sinh để phản biện.</div>
+              <div className="text-xs text-rose-600 mt-2">
+                ⚠ Chưa đủ 3 thí sinh. Cần các vòng trước được BGK chấm xong để xác định top 3.
+              </div>
             )}
           </div>
         </div>

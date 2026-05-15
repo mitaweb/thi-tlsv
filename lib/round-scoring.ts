@@ -160,7 +160,15 @@ export async function computeLeaderboard(
   const batch = await loadBatch(sb, roundId);
   if (!batch) return [];
 
-  const rows: RoundLeaderboardRow[] = batch.contestants.map((c) => {
+  // Cho vòng debate: chỉ lấy top 3 theo cumulative của vòng TRƯỚC liền kề
+  const currentRound = batch.rounds.find((r) => r.id === roundId);
+  let contestants = batch.contestants;
+  if (currentRound?.kind === "debate") {
+    const topIds = await getTop3IdsForDebate(sb, roundId);
+    contestants = batch.contestants.filter((c) => topIds.includes(c.id));
+  }
+
+  const rows: RoundLeaderboardRow[] = contestants.map((c) => {
     const round_score = roundScoreFromBatch(batch, roundId, c.id);
     const cumulative_score = batch.rounds.reduce(
       (sum, r) => sum + roundScoreFromBatch(batch, r.id, c.id),
@@ -176,8 +184,71 @@ export async function computeLeaderboard(
     };
   });
 
-  rows.sort((a, b) => b.cumulative_score - a.cumulative_score || a.display_order - b.display_order);
+  // Debate sort theo round_score DESC, các vòng khác theo cumulative DESC
+  if (currentRound?.kind === "debate") {
+    rows.sort((a, b) => b.round_score - a.round_score || a.display_order - b.display_order);
+  } else {
+    rows.sort((a, b) => b.cumulative_score - a.cumulative_score || a.display_order - b.display_order);
+  }
   return rows;
+}
+
+/**
+ * Lấy IDs của top 3 thí sinh tham gia debate.
+ * Top 3 = top 3 cumulative_score qua vòng LIỀN KỀ TRƯỚC debate.
+ * Fallback: nếu không có vòng trước, lấy 3 thí sinh đầu theo display_order.
+ */
+export async function getTop3IdsForDebate(
+  sb: SupabaseClient,
+  debateRoundId: string,
+): Promise<string[]> {
+  const top = await getTop3ForDebate(sb, debateRoundId);
+  return top.map((r) => r.contestant_id);
+}
+
+/** Lấy thông tin chi tiết top 3 (full_name, cumulative qua vòng trước) cho UI hiển thị. */
+export async function getTop3ForDebate(
+  sb: SupabaseClient,
+  debateRoundId: string,
+): Promise<RoundLeaderboardRow[]> {
+  // Lấy meta vòng debate
+  const { data: round } = await sb
+    .from("gm_round")
+    .select("group_id, display_order")
+    .eq("id", debateRoundId)
+    .maybeSingle();
+  if (!round || !round.group_id) return [];
+
+  // Tìm vòng liền kề trước
+  const { data: priorRounds } = await sb
+    .from("gm_round")
+    .select("id, display_order")
+    .eq("group_id", round.group_id)
+    .lt("display_order", round.display_order)
+    .order("display_order", { ascending: false })
+    .limit(1);
+
+  if (!priorRounds?.length) {
+    // Fallback: chưa có vòng nào trước → 3 thí sinh đầu theo display_order
+    const { data: cs } = await sb
+      .from("gm_contestant")
+      .select("id, display_order, full_name, organization")
+      .eq("group_id", round.group_id)
+      .order("display_order")
+      .limit(3);
+    return (cs ?? []).map((c: any) => ({
+      contestant_id: c.id,
+      display_order: c.display_order,
+      full_name: c.full_name,
+      organization: c.organization,
+      round_score: 0,
+      cumulative_score: 0,
+    }));
+  }
+
+  // Lấy BXH vòng liền kề trước (cumulative qua vòng đó) → top 3
+  const lb = await computeLeaderboard(sb, priorRounds[0].id);
+  return lb.slice(0, 3);
 }
 
 /** API: tổng tích lũy TRƯỚC vòng hiện tại (không bao gồm vòng đó) + breakdown */

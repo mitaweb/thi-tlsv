@@ -95,13 +95,24 @@ function ScoringForm({
     const sb = getBrowserClient();
     setLoading(true);
     (async () => {
-      // Contestants in group (debate: chỉ 3 thí sinh đầu)
-      let cQuery = sb.from("gm_contestant").select("*");
-      if (round.group_id) cQuery = cQuery.eq("group_id", round.group_id);
-      else cQuery = cQuery.eq("round_id", round.id);
-      const { data: cData } = await cQuery.order("display_order");
-      let cs = (cData ?? []) as Contestant[];
-      if (round.kind === "debate") cs = cs.slice(0, 3);
+      let cs: Contestant[] = [];
+      if (round.kind === "debate") {
+        // Debate: top 3 theo cumulative vòng liền kề trước
+        const r = await fetch(`/api/debate-contestants?roundId=${round.id}`).then((x) => x.json());
+        if (r.ok) {
+          const ids = r.data.map((d: any) => d.contestant_id);
+          const { data } = await sb.from("gm_contestant").select("*").in("id", ids);
+          // Giữ thứ tự top 3 (theo điểm)
+          cs = ids.map((id: string) => (data ?? []).find((c: any) => c.id === id)).filter(Boolean) as Contestant[];
+        }
+      } else {
+        // Panel: toàn bộ thí sinh group
+        let q = sb.from("gm_contestant").select("*");
+        if (round.group_id) q = q.eq("group_id", round.group_id);
+        else q = q.eq("round_id", round.id);
+        const { data } = await q.order("display_order");
+        cs = (data ?? []) as Contestant[];
+      }
       setContestants(cs);
 
       // Existing submission?

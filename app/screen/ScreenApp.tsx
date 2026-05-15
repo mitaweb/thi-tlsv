@@ -102,15 +102,31 @@ function DebateScreen({ round }: { round: RoundWithGroup }) {
     return () => { audioCtxRef.current?.close(); };
   }, []);
 
-  // Fetch contestants in group (lấy 3 thí sinh đầu cho debate)
+  // Top 3 thí sinh theo cumulative vòng liền kề trước
   useEffect(() => {
+    const fetchTop3 = async () => {
+      const r = await fetch(`/api/debate-contestants?roundId=${round.id}`).then((x) => x.json());
+      if (!r.ok || !r.data?.length) {
+        setContestants([]);
+        return;
+      }
+      const ids = r.data.map((d: any) => d.contestant_id);
+      const sb = getBrowserClient();
+      const { data } = await sb.from("gm_contestant").select("*").in("id", ids);
+      const ordered = ids
+        .map((id: string) => (data ?? []).find((c: any) => c.id === id))
+        .filter(Boolean) as Contestant[];
+      setContestants(ordered);
+    };
+    fetchTop3();
+    // Re-fetch khi panel_submission đổi (vòng trước chấm xong)
     const sb = getBrowserClient();
-    let q = sb.from("gm_contestant").select("*");
-    if (round.group_id) q = q.eq("group_id", round.group_id);
-    q.order("display_order").then(({ data }) => {
-      setContestants(((data ?? []) as Contestant[]).slice(0, 3));
-    });
-  }, [round.group_id]);
+    const ch = sb
+      .channel(`debate-screen-top3-${round.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "gm_panel_submission" }, fetchTop3)
+      .subscribe();
+    return () => { sb.removeChannel(ch); };
+  }, [round.id]);
 
   // Phát tic-tac 10s cuối cùng
   useEffect(() => {
@@ -192,8 +208,8 @@ function DebateScreen({ round }: { round: RoundWithGroup }) {
 
 function getMatchPair(contestants: Contestant[], match: number): [Contestant, Contestant] | null {
   if (contestants.length < 3) return null;
-  // Match 1: 1-2, Match 2: 2-3, Match 3: 3-1
-  const pairs: [number, number][] = [[0, 1], [1, 2], [2, 0]];
+  // Cặp 1: Top1 vs Top2, Cặp 2: Top1 vs Top3, Cặp 3: Top3 vs Top2
+  const pairs: [number, number][] = [[0, 1], [0, 2], [2, 1]];
   const [a, b] = pairs[match - 1] ?? pairs[0];
   return [contestants[a], contestants[b]];
 }
@@ -211,6 +227,7 @@ function formatMMSS(sec: number): string {
  */
 function PanelLeaderboardScreen({ round }: { round: RoundWithGroup }) {
   const [rows, setRows] = useState<RoundLeaderboardRow[]>([]);
+  const isDebate = round.kind === "debate";
 
   useEffect(() => {
     const fetchLb = () =>
@@ -229,50 +246,94 @@ function PanelLeaderboardScreen({ round }: { round: RoundWithGroup }) {
 
   const medals = ["🥇", "🥈", "🥉"];
   return (
-    <main className="ocean-bg h-screen overflow-hidden p-8 flex flex-col">
+    <main className={`${isDebate ? "debate-bg" : "ocean-bg"} h-screen overflow-hidden p-8 flex flex-col`}>
       <header className="text-center mb-4">
-        <h1 className="text-4xl font-bold text-ocean-900 drop-shadow">
+        <h1 className={`text-4xl font-bold drop-shadow ${isDebate ? "text-white" : "text-ocean-900"}`}>
           {round.group?.name ?? "—"} – {round.name}
         </h1>
-        <div className="text-lg text-ocean-700">Bảng xếp hạng vòng này / Tổng tích lũy</div>
+        <div className={`text-lg ${isDebate ? "text-white/80" : "text-ocean-700"}`}>
+          {isDebate ? "Bảng xếp hạng phản biện" : "Bảng xếp hạng vòng này / Tổng tích lũy"}
+        </div>
       </header>
       <div className="flex-1 glass rounded-2xl px-10 py-6 flex flex-col min-h-0">
-        <div className="grid grid-cols-12 gap-4 px-6 pb-3 border-b-4 border-ocean-300 text-2xl font-bold text-ocean-700 shrink-0">
-          <div className="col-span-1 text-center">#</div>
-          <div className="col-span-6">Thí sinh</div>
-          <div className="col-span-2 text-right">Vòng này</div>
-          <div className="col-span-3 text-right">Tổng tích lũy</div>
-        </div>
-        <div className="flex-1 flex flex-col gap-2 min-h-0 mt-3 overflow-y-auto">
-          {rows.map((r, i) => (
-            <div
-              key={r.contestant_id}
-              className={`grid grid-cols-12 gap-4 items-center px-6 py-3 rounded-2xl border-4 ${
-                i === 0 ? "bg-amber-100 border-amber-400"
-                : i === 1 ? "bg-slate-100 border-slate-400"
-                : i === 2 ? "bg-orange-100 border-orange-400"
-                : "bg-white/85 border-ocean-200"
-              }`}
-            >
-              <div className="col-span-1 text-center font-extrabold text-3xl">
-                {i < 3 ? medals[i] : `${i + 1}`}
-              </div>
-              <div className="col-span-6">
-                <div className="font-bold text-2xl text-ocean-900">{r.full_name}</div>
-                {r.organization && <div className="text-base text-ocean-600">{r.organization}</div>}
-              </div>
-              <div className="col-span-2 text-right font-mono text-2xl text-ocean-700">{r.round_score}đ</div>
-              <div className="col-span-3 text-right font-mono font-extrabold text-3xl text-ocean-800">
-                {r.cumulative_score}đ
-              </div>
+        {isDebate ? (
+          // BXH debate: chỉ 1 cột điểm
+          <>
+            <div className="grid grid-cols-12 gap-4 px-6 pb-3 border-b-4 border-ocean-300 text-2xl font-bold text-ocean-700 shrink-0">
+              <div className="col-span-1 text-center">#</div>
+              <div className="col-span-7">Thí sinh</div>
+              <div className="col-span-4 text-right">Điểm phản biện</div>
             </div>
-          ))}
-          {rows.length === 0 && (
-            <div className="text-center text-ocean-700 text-xl pt-12">
-              Đang chờ giám khảo chấm điểm...
+            <div className="flex-1 flex flex-col gap-3 min-h-0 mt-3 justify-center">
+              {rows.map((r, i) => (
+                <div
+                  key={r.contestant_id}
+                  className={`grid grid-cols-12 gap-4 items-center px-8 py-6 rounded-2xl border-4 ${
+                    i === 0 ? "bg-amber-100 border-amber-400"
+                    : i === 1 ? "bg-slate-100 border-slate-400"
+                    : "bg-orange-100 border-orange-400"
+                  }`}
+                >
+                  <div className="col-span-1 text-center font-extrabold text-5xl">
+                    {medals[i] ?? `${i + 1}`}
+                  </div>
+                  <div className="col-span-7">
+                    <div className="font-bold text-3xl text-ocean-900">{r.full_name}</div>
+                    {r.organization && <div className="text-lg text-ocean-600 mt-1">{r.organization}</div>}
+                  </div>
+                  <div className="col-span-4 text-right font-mono font-extrabold text-6xl text-ocean-800">
+                    {r.round_score}<span className="text-3xl ml-1">đ</span>
+                  </div>
+                </div>
+              ))}
+              {rows.length === 0 && (
+                <div className="text-center text-ocean-700 text-xl pt-12">
+                  Đang chờ giám khảo chấm điểm phản biện...
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        ) : (
+          // BXH panel/quiz: 2 cột (vòng + tổng)
+          <>
+            <div className="grid grid-cols-12 gap-4 px-6 pb-3 border-b-4 border-ocean-300 text-2xl font-bold text-ocean-700 shrink-0">
+              <div className="col-span-1 text-center">#</div>
+              <div className="col-span-6">Thí sinh</div>
+              <div className="col-span-2 text-right">Vòng này</div>
+              <div className="col-span-3 text-right">Tổng tích lũy</div>
+            </div>
+            <div className="flex-1 flex flex-col gap-2 min-h-0 mt-3 overflow-y-auto">
+              {rows.map((r, i) => (
+                <div
+                  key={r.contestant_id}
+                  className={`grid grid-cols-12 gap-4 items-center px-6 py-3 rounded-2xl border-4 ${
+                    i === 0 ? "bg-amber-100 border-amber-400"
+                    : i === 1 ? "bg-slate-100 border-slate-400"
+                    : i === 2 ? "bg-orange-100 border-orange-400"
+                    : "bg-white/85 border-ocean-200"
+                  }`}
+                >
+                  <div className="col-span-1 text-center font-extrabold text-3xl">
+                    {i < 3 ? medals[i] : `${i + 1}`}
+                  </div>
+                  <div className="col-span-6">
+                    <div className="font-bold text-2xl text-ocean-900">{r.full_name}</div>
+                    {r.organization && <div className="text-base text-ocean-600">{r.organization}</div>}
+                  </div>
+                  <div className="col-span-2 text-right font-mono text-2xl text-ocean-700">{r.round_score}đ</div>
+                  <div className="col-span-3 text-right font-mono font-extrabold text-3xl text-ocean-800">
+                    {r.cumulative_score}đ
+                  </div>
+                </div>
+              ))}
+              {rows.length === 0 && (
+                <div className="text-center text-ocean-700 text-xl pt-12">
+                  Đang chờ giám khảo chấm điểm...
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </main>
   );
