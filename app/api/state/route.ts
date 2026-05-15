@@ -67,9 +67,19 @@ export async function POST(req: NextRequest) {
       const state = cur ?? (await sb.from("gm_round_state").select("*").eq("round_id", roundId).single()).data;
       const qid = state?.current_question_id;
       if (qid) {
-        const { data: q } = await sb.from("gm_question").select("correct_option").eq("id", qid).single();
-        const { data: contestants } = await sb.from("gm_contestant").select("id").eq("round_id", roundId);
-        const { data: answered } = await sb.from("gm_answer").select("contestant_id").eq("question_id", qid);
+        // Parallel: 5 read song song
+        const [qRes, contestantsRes, answeredRes, powerupsRes, roundRes] = await Promise.all([
+          sb.from("gm_question").select("correct_option").eq("id", qid).single(),
+          sb.from("gm_contestant").select("id").eq("round_id", roundId),
+          sb.from("gm_answer").select("contestant_id").eq("question_id", qid),
+          sb.from("gm_powerup_use").select("contestant_id").eq("question_id", qid),
+          sb.from("gm_round").select("powerup_name, powerup_icon").eq("id", roundId).single(),
+        ]);
+        const q = qRes.data;
+        const contestants = contestantsRes.data;
+        const answered = answeredRes.data;
+        const powerups = powerupsRes.data;
+        const roundData = roundRes.data;
         const answeredSet = new Set((answered ?? []).map((a) => a.contestant_id));
 
         // Auto-insert câu trả lời trống cho thí sinh chưa submit
@@ -90,83 +100,69 @@ export async function POST(req: NextRequest) {
         // Lock tất cả answer của câu này
         await sb.from("gm_answer").update({ locked: true }).eq("question_id", qid);
 
-        // ── Tính điểm tại lúc công bố ───────────────────────────────────────
-        // Khi thí sinh submit, server lưu points_awarded=0 (để tổng điểm không
-        // nhảy ngay → giữ hồi hộp). Tại reveal, tính điểm thật cho mọi đáp án
-        // đúng dựa trên elapsed_ms đã lưu.
+        // ── Tính điểm tại lúc công bố (parallel) ──────────────────────────
         const { data: correctAnswers } = await sb
           .from("gm_answer")
           .select("id, elapsed_ms")
           .eq("question_id", qid)
           .eq("is_correct", true);
 
-        for (const row of (correctAnswers ?? [])) {
-          const pts = scoreFromElapsed(row.elapsed_ms, true);
-          await sb.from("gm_answer").update({ points_awarded: pts }).eq("id", row.id);
-        }
-        // ───────────────────────────────────────────────────────────────────
+        await Promise.all(
+          (correctAnswers ?? []).map((row) => {
+            const pts = scoreFromElapsed(row.elapsed_ms, true);
+            return sb.from("gm_answer").update({ points_awarded: pts }).eq("id", row.id);
+          })
+        );
+        // ──────────────────────────────────────────────────────────────────
 
-        // Áp dụng power-up bonus cho những thí sinh đã kích hoạt
-        const { data: powerups } = await sb
-          .from("gm_powerup_use")
-          .select("contestant_id")
-          .eq("question_id", qid);
-
+        // Áp dụng power-up bonus (parallel)
         if (powerups?.length) {
-          // Lấy thông tin power-up của vòng để ghi log
-          const { data: roundData } = await sb
-            .from("gm_round")
-            .select("powerup_name, powerup_icon")
-            .eq("id", roundId)
-            .single();
           const puName = roundData?.powerup_name ?? "Bồ câu";
-
-          // Lấy lại sau bước fix để có points chính xác
           const { data: allAnswers } = await sb
             .from("gm_answer")
             .select("contestant_id, is_correct, points_awarded, elapsed_ms")
             .eq("question_id", qid);
 
-          for (const pu of powerups) {
-            const ans = allAnswers?.find((a) => a.contestant_id === pu.contestant_id);
-            if (ans) {
-              // Đúng: nhân 2 | Sai: trừ 5
+          await Promise.all(
+            powerups.map(async (pu) => {
+              const ans = allAnswers?.find((a) => a.contestant_id === pu.contestant_id);
+              if (!ans) return;
               const basePoints = ans.points_awarded;
               const newPoints = ans.is_correct ? basePoints * 2 : -5;
-              await sb
-                .from("gm_answer")
-                .update({ points_awarded: newPoints })
-                .eq("question_id", qid)
-                .eq("contestant_id", pu.contestant_id);
-
-              // Log chi tiết áp dụng power-up cho từng thí sinh
-              await sb.from("gm_activity_log").insert({
-                round_id: roundId,
-                question_id: qid,
-                contestant_id: pu.contestant_id,
-                actor: "system",
-                action: "powerup_apply",
-                payload: {
-                  powerup_name: puName,
-                  isCorrect: ans.is_correct,
-                  basePoints,
-                  finalPoints: newPoints,
-                  delta: newPoints - basePoints,
-                },
-                elapsed_ms: ans.elapsed_ms,
-              });
-            }
-          }
+              await Promise.all([
+                sb
+                  .from("gm_answer")
+                  .update({ points_awarded: newPoints })
+                  .eq("question_id", qid)
+                  .eq("contestant_id", pu.contestant_id),
+                sb.from("gm_activity_log").insert({
+                  round_id: roundId,
+                  question_id: qid,
+                  contestant_id: pu.contestant_id,
+                  actor: "system",
+                  action: "powerup_apply",
+                  payload: {
+                    powerup_name: puName,
+                    isCorrect: ans.is_correct,
+                    basePoints,
+                    finalPoints: newPoints,
+                    delta: newPoints - basePoints,
+                  },
+                  elapsed_ms: ans.elapsed_ms,
+                }),
+              ]);
+            })
+          );
         }
 
-        // Ghi log
-        await sb.from("gm_activity_log").insert({
+        // Ghi log reveal (fire & forget — không chặn response)
+        sb.from("gm_activity_log").insert({
           round_id: roundId,
           question_id: qid,
           actor: "admin",
           action: "reveal",
           payload: { correct: q?.correct_option, powerup_count: powerups?.length ?? 0 },
-        });
+        }).then(() => {});
       }
       break;
     }
