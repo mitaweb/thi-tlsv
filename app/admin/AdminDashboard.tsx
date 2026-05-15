@@ -61,10 +61,24 @@ function RoundControl({ roundId, round }: { roundId: string; round: Round }) {
   const [contestants, setContestants] = useState<Contestant[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [currentAnswers, setCurrentAnswers] = useState<any[]>([]);
+  // Câu đã hoàn thành (có locked answer) và câu bị hủy (local)
+  const [completedQIds, setCompletedQIds] = useState<Set<string>>(new Set());
+  const [voidedQIds, setVoidedQIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetch(`/api/questions?roundId=${roundId}`).then((r) => r.json()).then((j) => j.ok && setQuestions(j.data));
     fetch(`/api/contestants?roundId=${roundId}`).then((r) => r.json()).then((j) => j.ok && setContestants(j.data));
+  }, [roundId]);
+
+  // Theo dõi câu đã hoàn thành (có ít nhất 1 locked answer)
+  useEffect(() => {
+    const sb = getBrowserClient();
+    const fetch = () =>
+      sb.from("gm_answer").select("question_id").eq("round_id", roundId).eq("locked", true)
+        .then(({ data }) => setCompletedQIds(new Set((data ?? []).map((a: any) => a.question_id))));
+    fetch();
+    const i = setInterval(fetch, 4000);
+    return () => clearInterval(i);
   }, [roundId]);
 
   const refreshLb = () => fetch(`/api/leaderboard?roundId=${roundId}`).then((r) => r.json()).then((j) => j.ok && setLeaderboard(j.data));
@@ -99,9 +113,29 @@ function RoundControl({ roundId, round }: { roundId: string; round: Round }) {
     if (!r.ok) alert("Lỗi: " + (await r.text()));
   }
 
+  async function voidQuestion(questionId: string, displayOrder: number) {
+    if (!confirm(`Hủy kết quả câu ${displayOrder}?\n\nToàn bộ điểm câu này sẽ bị xóa. Thí sinh sẽ thi câu thay thế.\nThao tác không thể hoàn tác.`)) return;
+    const r = await fetch("/api/void-question", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ roundId, questionId }),
+    });
+    const j = await r.json();
+    if (j.ok) {
+      setVoidedQIds((prev) => new Set([...prev, questionId]));
+      // Xóa khỏi completedQIds nếu có
+      setCompletedQIds((prev) => { const s = new Set(prev); s.delete(questionId); return s; });
+    } else {
+      alert("Lỗi: " + j.error);
+    }
+  }
+
   const phase = state?.phase ?? "idle";
   const currentIdx = questions.findIndex((q) => q.id === state?.current_question_id);
   const nextQ = questions[currentIdx + 1];
+
+  // Số câu hoàn thành thực tế (không tính câu bị hủy)
+  const doneCount = [...completedQIds].filter((id) => !voidedQIds.has(id)).length;
 
   // Auto-reveal khi đồng hồ về 0
   const autoRevealedRef = useRef<string | null>(null);
@@ -167,13 +201,29 @@ function RoundControl({ roundId, round }: { roundId: string; round: Round }) {
         </div>
 
         <div className="card">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="font-bold text-ocean-800">Câu hỏi hiện tại</h2>
-            {nextQ && (
-              <button className="btn-primary" onClick={() => dispatch("goto", { questionId: nextQ.id })}>
-                → Chuyển câu kế ({nextQ.display_order})
-              </button>
-            )}
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+            <div>
+              <h2 className="font-bold text-ocean-800">Câu hỏi hiện tại</h2>
+              <div className="text-xs text-ocean-600 mt-0.5">
+                Hoàn thành: <span className="font-bold text-ocean-800">{doneCount}</span> câu
+                {voidedQIds.size > 0 && <span className="ml-2 text-rose-600">(bỏ: {voidedQIds.size})</span>}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {currentQuestion && (
+                <button
+                  className="btn-danger text-sm"
+                  onClick={() => voidQuestion(currentQuestion.id, currentQuestion.display_order)}
+                >
+                  🚫 Hủy câu {currentQuestion.display_order}
+                </button>
+              )}
+              {nextQ && (
+                <button className="btn-primary" onClick={() => dispatch("goto", { questionId: nextQ.id })}>
+                  → Câu kế ({nextQ.display_order})
+                </button>
+              )}
+            </div>
           </div>
           {currentQuestion ? (
             <div className="space-y-2">
@@ -223,19 +273,37 @@ function RoundControl({ roundId, round }: { roundId: string; round: Round }) {
         </div>
 
         <div className="card">
-          <h2 className="font-bold text-ocean-800 mb-2">Danh sách câu hỏi</h2>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="font-bold text-ocean-800">Danh sách câu hỏi</h2>
+            <div className="flex items-center gap-3 text-xs text-ocean-600">
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-emerald-200 border border-emerald-400 inline-block" /> Hoàn thành</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-rose-100 border border-rose-400 inline-block" /> Đã hủy</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-ocean-100 border border-ocean-600 inline-block" /> Đang thi</span>
+            </div>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
             {questions.map((q) => {
               const active = q.id === state?.current_question_id;
+              const voided = voidedQIds.has(q.id);
+              const done = completedQIds.has(q.id) && !voided;
+              const cls = active
+                ? "border-ocean-600 bg-ocean-100"
+                : voided
+                ? "border-rose-400 bg-rose-50 opacity-60"
+                : done
+                ? "border-emerald-400 bg-emerald-50"
+                : "border-ocean-200 bg-white hover:bg-ocean-50";
               return (
                 <button
                   key={q.id}
                   onClick={() => dispatch("goto", { questionId: q.id })}
-                  className={`p-2 rounded-lg border-2 text-sm text-left ${
-                    active ? "border-ocean-600 bg-ocean-100" : "border-ocean-200 bg-white hover:bg-ocean-50"
-                  }`}
+                  className={`p-2 rounded-lg border-2 text-sm text-left ${cls}`}
                 >
-                  <div className="font-bold">Câu {q.display_order}</div>
+                  <div className="font-bold flex items-center gap-1">
+                    Câu {q.display_order}
+                    {voided && <span className="text-rose-600 text-xs">✗ Hủy</span>}
+                    {done && <span className="text-emerald-600 text-xs">✓</span>}
+                  </div>
                   <div className="text-xs line-clamp-2 text-ocean-700">{q.prompt}</div>
                 </button>
               );
