@@ -13,10 +13,18 @@ export default function QuestionsManager() {
   const [status, setStatus] = useState("");
 
   useEffect(() => {
-    fetch("/api/rounds").then((r) => r.json()).then((j) => {
+    fetch("/api/rounds", { cache: "no-store" }).then((r) => r.json()).then((j) => {
       if (j.ok) {
-        // Chỉ vòng quiz mới có câu hỏi (panel/debate không cần)
-        const quizOnly = (j.data as Round[]).filter((r) => (r as any).kind === "quiz");
+        // Chỉ vòng quiz mới có câu hỏi (panel/debate không cần).
+        // Filter kép: theo kind='quiz' HOẶC code không chứa underscore
+        // (vì code quiz là 'SV' / 'THPT', còn code panel/debate có '_').
+        const quizOnly = (j.data as Round[]).filter((r) => {
+          const kind = (r as any).kind;
+          if (kind === "quiz") return true;
+          if (kind === "panel" || kind === "debate") return false;
+          // Fallback: nếu kind null/undefined, dùng code
+          return !String(r.code ?? "").includes("_");
+        });
         setRounds(quizOnly);
         if (quizOnly.length) setRoundId(quizOnly[0].id);
       }
@@ -145,7 +153,8 @@ export default function QuestionsManager() {
                 roundId === r.id ? "bg-ocean-600 text-white border-ocean-700" : "bg-white text-ocean-700 border-ocean-200"
               }`}
             >
-              {r.name} ({r.code})
+              {r.code === "SV" ? "🎓 Sinh Viên — " : r.code === "THPT" ? "📘 THPT — " : ""}
+              {r.name}
             </button>
           ))}
         </div>
