@@ -186,16 +186,20 @@ function DebateScreen({ round, showTop3 }: { round: RoundWithGroup; showTop3: bo
           <div className="text-2xl text-ocean-700 italic">Đợi Ban Tổ chức bắt đầu phần thi...</div>
         ) : (
           <>
-            {/* Match info */}
-            <div className="text-center mb-6">
-              <div className="text-2xl text-amber-700 font-bold uppercase tracking-wider mb-2">
+            {/* Match info — tên thí sinh stack dọc, font to */}
+            <div className="text-center mb-6 w-full">
+              <div className="text-2xl text-amber-700 font-bold uppercase tracking-wider mb-3">
                 Cặp đấu số {matchNo}
               </div>
               {matchPair && (
-                <div className="text-3xl md:text-4xl font-bold text-ocean-900">
-                  {matchPair[0].full_name}
-                  <span className="mx-4 text-amber-600">vs</span>
-                  {matchPair[1].full_name}
+                <div className="flex flex-col items-center gap-2">
+                  <div className="text-5xl md:text-6xl font-extrabold text-ocean-900 leading-tight px-4">
+                    {matchPair[0].full_name}
+                  </div>
+                  <div className="text-3xl md:text-4xl font-extrabold text-amber-600 tracking-widest">VS</div>
+                  <div className="text-5xl md:text-6xl font-extrabold text-ocean-900 leading-tight px-4">
+                    {matchPair[1].full_name}
+                  </div>
                 </div>
               )}
             </div>
