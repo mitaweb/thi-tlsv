@@ -132,7 +132,7 @@ export default function LogsViewer() {
           <Link href="/admin" className="btn-ghost text-ocean-700">← Quay lại</Link>
           <h1 className="text-2xl font-bold text-ocean-900">📋 Log hoạt động thí sinh</h1>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
           <label className="flex items-center gap-2 text-sm text-ocean-700 cursor-pointer select-none">
             <input
               type="checkbox"
@@ -144,6 +144,50 @@ export default function LogsViewer() {
           </label>
           <button className="btn-secondary" onClick={fetchLogs} disabled={loading}>
             {loading ? "Đang tải..." : "🔄 Làm mới"}
+          </button>
+          <button
+            className="btn-ghost text-rose-700 border border-rose-200 hover:bg-rose-50"
+            disabled={!roundId}
+            onClick={async () => {
+              const r = rounds.find((x) => x.id === roundId);
+              if (!r) return;
+              if (!confirm(`Xóa toàn bộ log của vòng "${r.name}"?\n\nThao tác không thể hoàn tác.`)) return;
+              const res = await fetch("/api/logs-reset", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ roundId }),
+              });
+              const j = await res.json();
+              if (j.ok) {
+                alert(`✓ Đã xóa log vòng "${r.name}".`);
+                fetchLogs();
+              } else {
+                alert("Lỗi: " + j.error);
+              }
+            }}
+          >
+            🗑 Xóa log vòng này
+          </button>
+          <button
+            className="btn-danger"
+            onClick={async () => {
+              if (!confirm("⚠ Xóa TOÀN BỘ log của mọi vòng?\n\nThao tác không thể hoàn tác.")) return;
+              if (!confirm("Xác nhận lần 2: bạn chắc chắn xóa hết log?")) return;
+              const res = await fetch("/api/logs-reset", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({}),
+              });
+              const j = await res.json();
+              if (j.ok) {
+                alert("✓ Đã xóa toàn bộ log.");
+                fetchLogs();
+              } else {
+                alert("Lỗi: " + j.error);
+              }
+            }}
+          >
+            🗑 Xóa toàn bộ log
           </button>
         </div>
       </header>
