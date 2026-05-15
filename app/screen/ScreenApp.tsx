@@ -94,7 +94,7 @@ function DebateScreen({ round, showTop3 }: { round: RoundWithGroup; showTop3: bo
   const remaining = useDebateCountdown(state, serverOffsetMs);
   const [contestants, setContestants] = useState<Contestant[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const lastTickRef = useRef<number>(-1);
+  // Track timer key đã schedule audio để tránh schedule trùng
   const finalPlayedRef = useRef<string | null>(null);
 
   // Init audio
@@ -129,22 +129,37 @@ function DebateScreen({ round, showTop3 }: { round: RoundWithGroup; showTop3: bo
     return () => { sb.removeChannel(ch); };
   }, [round.id]);
 
-  // Phát tic-tac 10s cuối cùng
+  // Pre-schedule TẤT CẢ 10 tic-tac + bell cuối ngay khi timer bắt đầu.
+  // Web Audio API có scheduling chính xác theo audio clock (không bị giật do
+  // React re-render hay browser jank). Mọi event được lập lịch 1 lần duy nhất.
   useEffect(() => {
-    if (state?.phase !== "running") {
-      lastTickRef.current = -1;
-      return;
+    if (state?.phase !== "running" || !state.debate_started_at || !state.debate_duration_sec) return;
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+
+    // Chỉ schedule 1 lần mỗi timer (key = started_at)
+    const key = state.debate_started_at;
+    if (finalPlayedRef.current === key) return;
+    finalPlayedRef.current = key;
+
+    const startedAtMs = new Date(state.debate_started_at).getTime();
+    const endAtMs = startedAtMs + state.debate_duration_sec * 1000 - serverOffsetMs;
+    const nowMs = Date.now();
+    const audioNow = ctx.currentTime;
+
+    // 10 tic-tac cuối: phát tại các mốc còn 10, 9, ..., 1 giây
+    for (let secLeft = 10; secLeft >= 1; secLeft--) {
+      const delayMs = (endAtMs - nowMs) - secLeft * 1000;
+      if (delayMs > 0) {
+        scheduleTick(ctx, audioNow + delayMs / 1000);
+      }
     }
-    const sec = Math.ceil(remaining);
-    if (sec <= 10 && sec >= 1 && sec !== lastTickRef.current) {
-      lastTickRef.current = sec;
-      playTick(audioCtxRef.current);
+    // Chuông cuối tại thời điểm 0
+    const bellDelay = endAtMs - nowMs;
+    if (bellDelay > 0) {
+      scheduleDebateBell(ctx, audioNow + bellDelay / 1000);
     }
-    if (sec <= 0 && finalPlayedRef.current !== state.debate_started_at) {
-      finalPlayedRef.current = state.debate_started_at;
-      playDebateBell(audioCtxRef.current);
-    }
-  }, [remaining, state?.phase, state?.debate_started_at]);
+  }, [state?.phase, state?.debate_started_at, state?.debate_duration_sec, serverOffsetMs]);
 
   // Nếu admin bật BXH → render leaderboard panel (chấm sau debate)
   if (state?.show_scoreboard) {
@@ -262,7 +277,6 @@ function ScreenStage({ roundId, round, showTop3 }: { roundId: string; round: Rou
   const [leaderboard, setLeaderboard] = useState<RoundLeaderboardRow[]>([]);
   const [powerupUsers, setPowerupUsers] = useState<{ contestant_id: string; full_name: string }[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const lastTickRef = useRef<number>(-1);
   const prevPhaseRef = useRef<string | null>(null);
   // Track question ID đã phát fanfare để tránh phát 2 lần
   const revealPlayedRef = useRef<string | null>(null);
@@ -296,22 +310,40 @@ function ScreenStage({ roundId, round, showTop3 }: { roundId: string; round: Rou
     prevPhaseRef.current = cur;
   }, [state?.phase]);
 
-  // Phát tic-tac mỗi giây nguyên khi remaining ≤ 5
+  // Pre-schedule TẤT CẢ tic-tac (5s cuối) + final beep ngay khi câu mới bắt đầu.
+  // Tránh giật do polling/setState 10Hz và sync chính xác với audio clock.
+  const scheduledForQidRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (state?.phase !== "running" || !state.question_started_at) return;
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+    const qid = state.current_question_id;
+    if (!qid) return;
+    // Tránh schedule lại cùng câu (mỗi câu chỉ 1 lần)
+    const key = `${qid}|${state.question_started_at}`;
+    if (scheduledForQidRef.current === key) return;
+    scheduledForQidRef.current = key;
+
+    const startedAtMs = new Date(state.question_started_at).getTime();
+    const endAtMs = startedAtMs + round.question_seconds * 1000 - serverOffsetMs;
+    const nowMs = Date.now();
+    const audioNow = ctx.currentTime;
+    // 5 tic-tac cuối
+    for (let secLeft = 5; secLeft >= 1; secLeft--) {
+      const delayMs = (endAtMs - nowMs) - secLeft * 1000;
+      if (delayMs > 0) scheduleTick(ctx, audioNow + delayMs / 1000);
+    }
+    // Final beep tại t=0 (không phải fanfare; fanfare đã phát ở useEffect khác)
+    const finalDelay = endAtMs - nowMs;
+    if (finalDelay > 0) scheduleFinalBeep(ctx, audioNow + finalDelay / 1000);
+  }, [state?.phase, state?.current_question_id, state?.question_started_at, round.question_seconds, serverOffsetMs]);
+
+  // Reset scheduled key khi không còn running (cho lần goto kế)
   useEffect(() => {
     if (state?.phase !== "running") {
-      lastTickRef.current = -1;
-      return;
+      scheduledForQidRef.current = null;
     }
-    const sec = Math.ceil(remaining);
-    if (sec <= 5 && sec >= 1 && sec !== lastTickRef.current) {
-      lastTickRef.current = sec;
-      playTick(audioCtxRef.current);
-    }
-    if (sec <= 0 && lastTickRef.current !== 0) {
-      lastTickRef.current = 0;
-      playFinal(audioCtxRef.current);
-    }
-  }, [remaining, state?.phase]);
+  }, [state?.phase]);
 
   // Refresh leaderboard (dùng /api/round-leaderboard để có cumulative)
   useEffect(() => {
@@ -557,30 +589,59 @@ function playFinal(ctx: AudioContext | null) {
 /** Chuông "RENG RENG RENG" cho phản biện hết giờ — to + 3 hồi + harmonic */
 function playDebateBell(ctx: AudioContext | null) {
   if (!ctx) return;
-  const now = ctx.currentTime;
-  // 3 hồi chuông cách nhau 0.42s, mỗi hồi gồm 4 harmonic (fundamental + 3 overtone)
-  // tạo cảm giác chuông kim loại "reng"
+  scheduleDebateBell(ctx, ctx.currentTime);
+}
+
+/** Lên lịch final beep (sine 600Hz) — dùng cho quiz screen khi hết giờ. */
+function scheduleFinalBeep(ctx: AudioContext, startTime: number) {
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.frequency.value = 600;
+  o.type = "sine";
+  g.gain.setValueAtTime(0.001, startTime);
+  g.gain.exponentialRampToValueAtTime(0.4, startTime + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.001, startTime + 0.5);
+  o.connect(g).connect(ctx.destination);
+  o.start(startTime);
+  o.stop(startTime + 0.55);
+}
+
+/** Lên lịch 1 tic-tac vào thời điểm `startTime` (audio context time) — chính xác tới ms. */
+function scheduleTick(ctx: AudioContext, startTime: number) {
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.frequency.value = 1000;
+  o.type = "square";
+  g.gain.setValueAtTime(0.001, startTime);
+  g.gain.exponentialRampToValueAtTime(0.25, startTime + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.001, startTime + 0.08);
+  o.connect(g).connect(ctx.destination);
+  o.start(startTime);
+  o.stop(startTime + 0.1);
+}
+
+/** Lên lịch chuông "reng reng reng" vào `startTime` (audio context time). */
+function scheduleDebateBell(ctx: AudioContext, startTime: number) {
   const ringTimes = [0, 0.42, 0.84];
   const harmonics = [
-    { freq: 880,  gain: 0.85, type: "sine" as OscillatorType },   // fundamental A5
-    { freq: 1320, gain: 0.55, type: "sine" as OscillatorType },   // 1.5x — perfect fifth
-    { freq: 2200, gain: 0.35, type: "sine" as OscillatorType },   // 2.5x — bell-like
-    { freq: 3300, gain: 0.20, type: "triangle" as OscillatorType }, // sharp metallic shimmer
+    { freq: 880,  gain: 0.85, type: "sine" as OscillatorType },
+    { freq: 1320, gain: 0.55, type: "sine" as OscillatorType },
+    { freq: 2200, gain: 0.35, type: "sine" as OscillatorType },
+    { freq: 3300, gain: 0.20, type: "triangle" as OscillatorType },
   ];
-
   for (const t of ringTimes) {
     for (const h of harmonics) {
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.frequency.value = h.freq;
       o.type = h.type;
-      // Attack nhanh (5ms), decay chậm (0.55s) → giống chuông
-      g.gain.setValueAtTime(0.001, now + t);
-      g.gain.exponentialRampToValueAtTime(h.gain, now + t + 0.005);
-      g.gain.exponentialRampToValueAtTime(0.001, now + t + 0.55);
+      const when = startTime + t;
+      g.gain.setValueAtTime(0.001, when);
+      g.gain.exponentialRampToValueAtTime(h.gain, when + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.001, when + 0.55);
       o.connect(g).connect(ctx.destination);
-      o.start(now + t);
-      o.stop(now + t + 0.6);
+      o.start(when);
+      o.stop(when + 0.6);
     }
   }
 }

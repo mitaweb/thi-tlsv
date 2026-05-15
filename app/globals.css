@@ -43,8 +43,14 @@ html, body {
 .card { @apply glass rounded-2xl p-6; }
 
 .option-btn {
-  @apply w-full text-left p-4 rounded-xl border-2 border-ocean-200 bg-white/80 hover:bg-ocean-50 transition font-medium;
+  /* transition-colors duration-75: feedback gần như tức thì khi chọn/đổi đáp án.
+     Tailwind 'transition' mặc định = 150ms tất cả properties → cảm giác lag. */
+  @apply w-full text-left p-4 rounded-xl border-2 border-ocean-200 bg-white/80 hover:bg-ocean-50 transition-colors duration-75 font-medium;
+  /* Active state tức thì khi tap trên mobile */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
+.option-btn:active { transform: scale(0.99); }
 .option-btn.selected { @apply border-ocean-600 bg-ocean-100; }
 .option-btn.correct { @apply border-emerald-500 bg-emerald-100 text-emerald-900; }
 .option-btn.wrong { @apply border-rose-500 bg-rose-100 text-rose-900; }
