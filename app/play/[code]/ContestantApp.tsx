@@ -230,7 +230,7 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
                 </button>
                 {powerupThisQ && (
                   <span className="text-xs text-amber-700 font-medium">
-                    Đúng: ×2 điểm · Sai: −5 điểm
+                    Đúng: ×2 điểm · Sai: −10 điểm
                   </span>
                 )}
                 {powerupPending && (
@@ -299,7 +299,7 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
                 <div className={`p-3 rounded-lg ${myAnswer.is_correct ? "bg-emerald-100 text-emerald-900" : "bg-rose-100 text-rose-900"}`}>
                   {myAnswer.is_correct
                     ? `✓ Đúng! ${powerupThisQ ? "×2 → " : ""}Bạn được ${myAnswer.points_awarded} điểm.`
-                    : `✗ Sai. Đáp án đúng là ${currentQuestion.correct_option}.${powerupThisQ ? " (Trừ 5 điểm)" : ""}`}
+                    : `✗ Sai. Đáp án đúng là ${currentQuestion.correct_option}.${powerupThisQ ? " (Trừ 10 điểm)" : ""}`}
                 </div>
               )}
             </>

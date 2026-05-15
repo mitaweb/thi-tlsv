@@ -130,7 +130,8 @@ export async function POST(req: NextRequest) {
               const ans = allAnswers?.find((a) => a.contestant_id === pu.contestant_id);
               if (!ans) return;
               const basePoints = ans.points_awarded;
-              const newPoints = ans.is_correct ? basePoints * 2 : -5;
+              // Đúng: nhân 2 điểm | Sai: trừ 10 điểm
+              const newPoints = ans.is_correct ? basePoints * 2 : -10;
               await Promise.all([
                 sb
                   .from("gm_answer")
