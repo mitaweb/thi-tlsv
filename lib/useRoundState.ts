@@ -89,3 +89,19 @@ export function useCountdown(state: RoundState | null, totalSec: number, serverO
   const elapsed = (now - serverOffsetMs - startMs) / 1000;
   return Math.max(0, totalSec - elapsed);
 }
+
+/**
+ * Hook đếm ngược cho vòng phản biện — dùng debate_started_at + debate_duration_sec.
+ * Trả về số giây còn lại (float). 0 nếu không có timer đang chạy.
+ */
+export function useDebateCountdown(state: RoundState | null, serverOffsetMs: number): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 100);
+    return () => clearInterval(t);
+  }, []);
+  if (state?.phase !== "running" || !state.debate_started_at || !state.debate_duration_sec) return 0;
+  const startMs = new Date(state.debate_started_at).getTime();
+  const elapsed = (now - serverOffsetMs - startMs) / 1000;
+  return Math.max(0, state.debate_duration_sec - elapsed);
+}

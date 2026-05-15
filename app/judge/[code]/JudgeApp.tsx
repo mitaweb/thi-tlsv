@@ -95,12 +95,13 @@ function ScoringForm({
     const sb = getBrowserClient();
     setLoading(true);
     (async () => {
-      // Contestants in group
+      // Contestants in group (debate: chỉ 3 thí sinh đầu)
       let cQuery = sb.from("gm_contestant").select("*");
       if (round.group_id) cQuery = cQuery.eq("group_id", round.group_id);
       else cQuery = cQuery.eq("round_id", round.id);
       const { data: cData } = await cQuery.order("display_order");
-      const cs = (cData ?? []) as Contestant[];
+      let cs = (cData ?? []) as Contestant[];
+      if (round.kind === "debate") cs = cs.slice(0, 3);
       setContestants(cs);
 
       // Existing submission?

@@ -75,13 +75,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "already_submitted" }, { status: 409 });
   }
 
-  // 4. Lấy danh sách thí sinh trong group
+  // 4. Lấy danh sách thí sinh trong group (debate: chỉ 3 thí sinh đầu)
   let contestantQuery = sb.from("gm_contestant").select("id, full_name, display_order");
   if (round.group_id) contestantQuery = contestantQuery.eq("group_id", round.group_id);
   else contestantQuery = contestantQuery.eq("round_id", roundId);
-  const { data: contestants } = await contestantQuery.order("display_order");
+  const { data: rawContestants } = await contestantQuery.order("display_order");
+  let contestants = rawContestants ?? [];
+  if (round.kind === "debate") contestants = contestants.slice(0, 3);
 
-  if (!contestants?.length) {
+  if (!contestants.length) {
     return NextResponse.json({ ok: false, error: "no_contestants" }, { status: 500 });
   }
 

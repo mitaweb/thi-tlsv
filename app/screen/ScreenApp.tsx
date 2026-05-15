@@ -1,8 +1,15 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import type { Round, RoundLeaderboardRow } from "@/lib/types";
-import { useRoundState, useCountdown } from "@/lib/useRoundState";
+import type { Round, RoundLeaderboardRow, Contestant } from "@/lib/types";
+import { useRoundState, useCountdown, useDebateCountdown } from "@/lib/useRoundState";
 import { getBrowserClient } from "@/lib/supabase";
+
+const DEBATE_PHASE_LABELS: Record<string, string> = {
+  thinking: "🧠 Suy nghĩ",
+  presenting: "🎤 Trình bày",
+  rebutting: "💬 Phản biện",
+  responding: "↩ Trả lời phản biện",
+};
 
 interface RoundWithGroup extends Round {
   group?: { id: string; code: string; name: string; debate_title: string | null } | null;
@@ -73,15 +80,129 @@ export default function ScreenApp() {
   if (round.kind === "panel") {
     return <PanelLeaderboardScreen round={round} />;
   }
-  // debate (stage 3 — placeholder)
+  // debate
+  return <DebateScreen round={round} />;
+}
+
+/**
+ * Màn chiếu vòng phản biện — background.png + title + đồng hồ đếm ngược.
+ * Khi show_scoreboard = true → chiếu BXH thay vì timer (tái sử dụng PanelLeaderboardScreen).
+ */
+function DebateScreen({ round }: { round: RoundWithGroup }) {
+  const { state, serverOffsetMs } = useRoundState(round.id);
+  const remaining = useDebateCountdown(state, serverOffsetMs);
+  const [contestants, setContestants] = useState<Contestant[]>([]);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const lastTickRef = useRef<number>(-1);
+  const finalPlayedRef = useRef<string | null>(null);
+
+  // Init audio
+  useEffect(() => {
+    audioCtxRef.current = new AudioContext();
+    return () => { audioCtxRef.current?.close(); };
+  }, []);
+
+  // Fetch contestants in group (lấy 3 thí sinh đầu cho debate)
+  useEffect(() => {
+    const sb = getBrowserClient();
+    let q = sb.from("gm_contestant").select("*");
+    if (round.group_id) q = q.eq("group_id", round.group_id);
+    q.order("display_order").then(({ data }) => {
+      setContestants(((data ?? []) as Contestant[]).slice(0, 3));
+    });
+  }, [round.group_id]);
+
+  // Phát tic-tac 10s cuối cùng
+  useEffect(() => {
+    if (state?.phase !== "running") {
+      lastTickRef.current = -1;
+      return;
+    }
+    const sec = Math.ceil(remaining);
+    if (sec <= 10 && sec >= 1 && sec !== lastTickRef.current) {
+      lastTickRef.current = sec;
+      playTick(audioCtxRef.current);
+    }
+    if (sec <= 0 && finalPlayedRef.current !== state.debate_started_at) {
+      finalPlayedRef.current = state.debate_started_at;
+      playFinal(audioCtxRef.current);
+    }
+  }, [remaining, state?.phase, state?.debate_started_at]);
+
+  // Nếu admin bật BXH → render leaderboard panel (chấm sau debate)
+  if (state?.show_scoreboard) {
+    return <PanelLeaderboardScreen round={round} />;
+  }
+
+  const matchNo = state?.debate_match;
+  const matchPair = matchNo ? getMatchPair(contestants, matchNo) : null;
+  const phase = state?.debate_phase;
+  const phaseLabel = phase ? DEBATE_PHASE_LABELS[phase] ?? phase : null;
+  const isUrgent = remaining > 0 && remaining <= 10 && state?.phase === "running";
+  const totalSec = state?.debate_duration_sec ?? 0;
+
   return (
-    <main className="ocean-bg flex items-center justify-center min-h-screen">
-      <div className="text-center text-white drop-shadow text-3xl">
-        🎙️ {round.group?.debate_title ?? "PHẢN BIỆN"}
-        <p className="text-base mt-2 text-ocean-100">Phần thi đang chuẩn bị...</p>
-      </div>
+    <main className="debate-bg h-screen overflow-hidden flex flex-col items-center justify-center text-white px-8">
+      <h1 className="text-5xl md:text-7xl font-extrabold tracking-wider drop-shadow-2xl text-center mb-8">
+        {round.group?.debate_title ?? "PHẢN BIỆN"}
+      </h1>
+
+      {!matchNo ? (
+        // Idle: chưa chọn match
+        <div className="text-2xl text-white/80 italic">Đợi Ban Tổ chức bắt đầu phần thi...</div>
+      ) : (
+        <>
+          {/* Match info */}
+          <div className="text-center mb-6">
+            <div className="text-2xl text-amber-200 font-bold uppercase tracking-wider mb-2">
+              Cặp đấu số {matchNo}
+            </div>
+            {matchPair && (
+              <div className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg">
+                {matchPair[0].full_name}
+                <span className="mx-4 text-amber-300">vs</span>
+                {matchPair[1].full_name}
+              </div>
+            )}
+          </div>
+
+          {/* Phase label + countdown */}
+          {phaseLabel && (
+            <div className="text-3xl md:text-4xl text-white/95 font-bold mb-4 drop-shadow">
+              {phaseLabel}
+            </div>
+          )}
+
+          <div
+            className={`text-9xl md:text-[12rem] font-mono font-extrabold px-12 py-6 rounded-3xl shadow-2xl ${
+              isUrgent ? "debate-urgent text-white" : "bg-white/95 text-ocean-900"
+            }`}
+          >
+            {state?.phase === "running" && remaining > 0 ? formatMMSS(remaining) : remaining <= 0 && totalSec > 0 ? "HẾT GIỜ" : "—"}
+          </div>
+
+          <div className="text-base text-white/70 mt-6">
+            {totalSec > 0 && `Tối đa ${formatMMSS(totalSec)}`}
+          </div>
+        </>
+      )}
     </main>
   );
+}
+
+function getMatchPair(contestants: Contestant[], match: number): [Contestant, Contestant] | null {
+  if (contestants.length < 3) return null;
+  // Match 1: 1-2, Match 2: 2-3, Match 3: 3-1
+  const pairs: [number, number][] = [[0, 1], [1, 2], [2, 0]];
+  const [a, b] = pairs[match - 1] ?? pairs[0];
+  return [contestants[a], contestants[b]];
+}
+
+function formatMMSS(sec: number): string {
+  const s = Math.ceil(sec);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${String(r).padStart(2, "0")}`;
 }
 
 /**
