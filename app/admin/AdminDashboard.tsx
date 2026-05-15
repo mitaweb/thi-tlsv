@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Round, Contestant, Question, LeaderboardRow } from "@/lib/types";
 import { useRoundState, useCountdown } from "@/lib/useRoundState";
@@ -102,6 +102,17 @@ function RoundControl({ roundId, round }: { roundId: string; round: Round }) {
   const phase = state?.phase ?? "idle";
   const currentIdx = questions.findIndex((q) => q.id === state?.current_question_id);
   const nextQ = questions[currentIdx + 1];
+
+  // Auto-reveal khi đồng hồ về 0
+  const autoRevealedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const qid = state?.current_question_id;
+    if (phase === "running" && remaining <= 0 && qid && autoRevealedRef.current !== qid) {
+      autoRevealedRef.current = qid;
+      dispatch("reveal");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remaining, phase, state?.current_question_id]);
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
