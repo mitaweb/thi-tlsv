@@ -633,25 +633,18 @@ function scheduleDebateBell(ctx: AudioContext, startTime: number) {
 }
 
 /** Fanfare C major arpeggio khi hiện đáp án đúng */
-function playReveal(ctx: AudioContext | null) {
-  if (!ctx) return;
-  const now = ctx.currentTime;
-  const notes = [
-    { freq: 523.25, t: 0,    dur: 0.55 }, // C5
-    { freq: 659.25, t: 0.15, dur: 0.55 }, // E5
-    { freq: 783.99, t: 0.30, dur: 0.55 }, // G5
-    { freq: 1046.5, t: 0.50, dur: 0.80 }, // C6
-  ];
-  notes.forEach(({ freq, t, dur }) => {
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.frequency.value = freq;
-    o.type = "sine";
-    g.gain.setValueAtTime(0.001, now + t);
-    g.gain.exponentialRampToValueAtTime(0.38, now + t + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.001, now + t + dur);
-    o.connect(g).connect(ctx.destination);
-    o.start(now + t);
-    o.stop(now + t + dur + 0.05);
+/** Phát file MP3 /dap-an-dung.mp3 khi công bố đáp án (thay fanfare synth). */
+let _revealAudio: HTMLAudioElement | null = null;
+function playReveal(_ctx?: AudioContext | null) {
+  // Pre-load 1 lần, replay nhiều lần
+  if (!_revealAudio) {
+    _revealAudio = new Audio("/dap-an-dung.mp3");
+    _revealAudio.preload = "auto";
+    _revealAudio.volume = 1.0;
+  }
+  // currentTime = 0 để phát từ đầu nếu đang chạy hoặc đã chạy xong trước đó
+  _revealAudio.currentTime = 0;
+  _revealAudio.play().catch(() => {
+    /* user chưa tương tác hoặc browser chặn → bỏ qua */
   });
 }
