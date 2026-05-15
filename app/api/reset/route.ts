@@ -41,6 +41,9 @@ export async function POST(req: NextRequest) {
     ops.push(sb.from("gm_panel_submission").delete().eq("round_id", roundId).then((r) => r));
   }
 
+  // Xóa toàn bộ activity log của vòng này (sạch sẽ cho lần thi sau)
+  ops.push(sb.from("gm_activity_log").delete().eq("round_id", roundId).then((r) => r));
+
   // Reset gm_round_state
   const stateReset: Record<string, unknown> = {
     phase: "idle",

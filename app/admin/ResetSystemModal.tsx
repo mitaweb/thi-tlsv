@@ -26,10 +26,10 @@ export default function ResetSystemModal({
     if (!round) return;
     const what =
       round.kind === "quiz"
-        ? "toàn bộ câu trả lời, bồ câu power-up, và trạng thái vòng"
+        ? "toàn bộ câu trả lời, bồ câu power-up, log hoạt động và trạng thái vòng"
         : round.kind === "panel"
-        ? "toàn bộ điểm BGK & Hội đồng (nếu có) và trạng thái vòng"
-        : "toàn bộ điểm BGK, trạng thái debate (cặp đấu, đồng hồ) và trạng thái vòng";
+        ? "toàn bộ điểm BGK & Hội đồng (nếu có), log hoạt động và trạng thái vòng"
+        : "toàn bộ điểm BGK, trạng thái debate (cặp đấu, đồng hồ), log hoạt động và trạng thái vòng";
     if (!confirm(
       `⚠ Reset vòng "${round.name}"?\n\nSẽ xóa: ${what}.\n\nThao tác không thể hoàn tác. Tiếp tục?`,
     )) {
