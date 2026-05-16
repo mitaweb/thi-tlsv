@@ -240,20 +240,28 @@ function DebateScreen({ round, showTop3, showScoreboard }: { round: RoundWithGro
               </div>
             )}
 
-            {/* HERO countdown — trung tâm */}
-            <div
-              className={`font-mono font-extrabold rounded-3xl shadow-2xl py-3 md:py-4 px-10 md:px-16 ${
-                isUrgent
-                  ? "debate-urgent text-white text-7xl md:text-8xl"
-                  : "bg-white text-ocean-900 text-7xl md:text-8xl"
-              }`}
-            >
-              {state?.phase === "running" && remaining > 0
+            {/* HERO countdown — trung tâm. Khi hết giờ hiển thị 'HẾT GIỜ',
+                font nhỏ hơn timer 1 chút để vừa box. */}
+            {(() => {
+              const isTimeUp = remaining <= 0 && totalSec > 0 && state?.phase === "running";
+              const display = state?.phase === "running" && remaining > 0
                 ? formatMMSS(remaining)
-                : remaining <= 0 && totalSec > 0
-                ? "HẾT"
-                : "—"}
-            </div>
+                : isTimeUp
+                ? "HẾT GIỜ"
+                : "—";
+              const sizeClass = isTimeUp
+                ? "text-6xl md:text-7xl"
+                : "text-7xl md:text-8xl";
+              return (
+                <div
+                  className={`font-mono font-extrabold rounded-3xl shadow-2xl py-3 md:py-4 px-10 md:px-16 whitespace-nowrap ${
+                    isUrgent ? "debate-urgent text-white" : "bg-white text-ocean-900"
+                  } ${sizeClass}`}
+                >
+                  {display}
+                </div>
+              );
+            })()}
 
             <div className="text-xs md:text-sm text-ocean-600 -mt-1">
               {totalSec > 0 && `Tối đa ${formatMMSS(totalSec)}`}
