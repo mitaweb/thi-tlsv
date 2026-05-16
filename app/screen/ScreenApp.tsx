@@ -199,52 +199,63 @@ function DebateScreen({ round, showTop3, showScoreboard }: { round: RoundWithGro
   const totalSec = state?.debate_duration_sec ?? 0;
 
   return (
-    <main className="debate-bg h-screen overflow-hidden flex flex-col items-center justify-center text-ocean-900 px-8">
-      {/* Khung nội dung xanh nhạt (frosted glass) trên ảnh background */}
-      <div className="bg-sky-100/75 backdrop-blur-md rounded-3xl px-12 py-10 shadow-2xl max-w-5xl w-full flex flex-col items-center border-2 border-white/60">
-        <h1 className="text-3xl md:text-5xl lg:text-6xl font-extrabold tracking-wider drop-shadow text-center mb-6 text-ocean-900 whitespace-nowrap">
+    <main className="debate-bg h-screen overflow-hidden flex flex-col items-center justify-center text-ocean-900 px-4 md:px-8">
+      {/* Khung frosted glass — gọn, layout có nhịp điệu thị giác */}
+      <div className="bg-sky-100/85 backdrop-blur-md rounded-3xl shadow-2xl border-2 border-white/60 max-w-5xl w-full px-6 md:px-10 py-5 md:py-7 flex flex-col items-center gap-3">
+        {/* Title — gọn ở trên */}
+        <h1 className="text-xl md:text-3xl font-extrabold tracking-wider whitespace-nowrap text-ocean-900">
           {round.group?.debate_title ?? "PHẢN BIỆN"}
         </h1>
 
         {!matchNo ? (
-          // Idle: chưa chọn match
-          <div className="text-2xl text-ocean-700 italic">Đợi Ban Tổ chức bắt đầu phần thi...</div>
+          <div className="text-xl md:text-2xl text-ocean-700 italic py-10">
+            Đợi Ban Tổ chức bắt đầu...
+          </div>
         ) : (
           <>
-            {/* Match info — tên thí sinh stack dọc, font to */}
-            <div className="text-center mb-6 w-full">
-              <div className="text-2xl text-amber-700 font-bold uppercase tracking-wider mb-3">
-                Cặp đấu số {matchNo}
-              </div>
-              {matchPair && (
-                <div className="flex flex-col items-center gap-2">
-                  <div className="text-5xl md:text-6xl font-extrabold text-ocean-900 leading-tight px-4">
-                    {matchPair[0].full_name}
-                  </div>
-                  <div className="text-3xl md:text-4xl font-extrabold text-amber-600 tracking-widest">VS</div>
-                  <div className="text-5xl md:text-6xl font-extrabold text-ocean-900 leading-tight px-4">
-                    {matchPair[1].full_name}
-                  </div>
-                </div>
-              )}
+            {/* Badge cặp đấu */}
+            <div className="bg-amber-200 border-2 border-amber-500 text-amber-900 px-5 py-1.5 rounded-full text-sm md:text-base font-bold uppercase tracking-widest shadow">
+              Cặp đấu {matchNo}
             </div>
 
-            {/* Phase label + countdown */}
+            {/* Tên 2 thí sinh — inline với VS giữa */}
+            {matchPair && (
+              <div className="flex items-center justify-center gap-3 md:gap-5 flex-wrap text-center w-full">
+                <div className="text-2xl md:text-4xl font-extrabold text-ocean-900 flex-1 text-right leading-tight max-w-[40%]">
+                  {matchPair[0].full_name}
+                </div>
+                <div className="bg-amber-500 text-white rounded-full w-12 h-12 md:w-14 md:h-14 flex items-center justify-center text-lg md:text-2xl font-extrabold shadow-lg shrink-0">
+                  VS
+                </div>
+                <div className="text-2xl md:text-4xl font-extrabold text-ocean-900 flex-1 text-left leading-tight max-w-[40%]">
+                  {matchPair[1].full_name}
+                </div>
+              </div>
+            )}
+
+            {/* Phase label */}
             {phaseLabel && (
-              <div className="text-3xl md:text-4xl text-ocean-800 font-bold mb-4">
+              <div className="text-xl md:text-2xl text-ocean-800 font-extrabold uppercase tracking-wider mt-1">
                 {phaseLabel}
               </div>
             )}
 
+            {/* HERO countdown — trung tâm */}
             <div
-              className={`text-9xl md:text-[12rem] font-mono font-extrabold px-12 py-6 rounded-3xl shadow-2xl ${
-                isUrgent ? "debate-urgent text-white" : "bg-white text-ocean-900"
+              className={`font-mono font-extrabold rounded-3xl shadow-2xl py-3 md:py-4 px-10 md:px-16 ${
+                isUrgent
+                  ? "debate-urgent text-white text-7xl md:text-8xl"
+                  : "bg-white text-ocean-900 text-7xl md:text-8xl"
               }`}
             >
-              {state?.phase === "running" && remaining > 0 ? formatMMSS(remaining) : remaining <= 0 && totalSec > 0 ? "HẾT GIỜ" : "—"}
+              {state?.phase === "running" && remaining > 0
+                ? formatMMSS(remaining)
+                : remaining <= 0 && totalSec > 0
+                ? "HẾT"
+                : "—"}
             </div>
 
-            <div className="text-base text-ocean-700 mt-6">
+            <div className="text-xs md:text-sm text-ocean-600 -mt-1">
               {totalSec > 0 && `Tối đa ${formatMMSS(totalSec)}`}
             </div>
           </>
