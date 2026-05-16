@@ -99,7 +99,7 @@ function RoundIdleScreen({ round }: { round: RoundWithGroup }) {
             {round.group.name}
           </div>
         )}
-        <h1 className="text-6xl md:text-7xl font-extrabold text-ocean-900 drop-shadow uppercase tracking-wide mb-6">
+        <h1 className="text-5xl md:text-6xl font-extrabold text-ocean-900 drop-shadow uppercase tracking-wide mb-6 whitespace-nowrap">
           {round.name}
         </h1>
         <div className="text-xl text-ocean-600 italic">
@@ -202,7 +202,7 @@ function DebateScreen({ round, showTop3, showScoreboard }: { round: RoundWithGro
     <main className="debate-bg h-screen overflow-hidden flex flex-col items-center justify-center text-ocean-900 px-8">
       {/* Khung nội dung xanh nhạt (frosted glass) trên ảnh background */}
       <div className="bg-sky-100/75 backdrop-blur-md rounded-3xl px-12 py-10 shadow-2xl max-w-5xl w-full flex flex-col items-center border-2 border-white/60">
-        <h1 className="text-5xl md:text-7xl font-extrabold tracking-wider drop-shadow text-center mb-6 text-ocean-900">
+        <h1 className="text-3xl md:text-5xl lg:text-6xl font-extrabold tracking-wider drop-shadow text-center mb-6 text-ocean-900 whitespace-nowrap">
           {round.group?.debate_title ?? "PHẢN BIỆN"}
         </h1>
 
@@ -555,7 +555,7 @@ function ScreenStage({ roundId, round, showTop3 }: { roundId: string; round: Rou
               <div className="text-2xl text-ocean-700 mb-3 uppercase tracking-widest font-semibold">
                 Phần thi
               </div>
-              <h1 className="text-6xl md:text-7xl font-extrabold text-ocean-900 drop-shadow uppercase tracking-wide mb-6">
+              <h1 className="text-5xl md:text-6xl font-extrabold text-ocean-900 drop-shadow uppercase tracking-wide mb-6 whitespace-nowrap">
                 {round.name}
               </h1>
               <div className="text-xl text-ocean-600 italic">

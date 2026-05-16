@@ -25,44 +25,44 @@ export default function UnifiedLeaderboard({
 
   // Tailwind class strings theo (mode, compact)
   const T = {
-    title: compact ? "text-2xl md:text-3xl" : "text-4xl md:text-5xl",
+    title: compact ? "text-2xl md:text-3xl" : "text-3xl md:text-5xl",
     headerCol:
       mode === "top3"
-        ? compact ? "text-xl" : "text-3xl"
-        : compact ? "text-lg" : "text-2xl",
+        ? compact ? "text-xl" : "text-2xl md:text-3xl"
+        : compact ? "text-lg" : "text-xl md:text-2xl",
     rowPadding:
       mode === "top3"
-        ? compact ? "py-4 px-6" : "py-8 px-10"
+        ? compact ? "py-4 px-6" : "py-6 px-8"
         : "flex-1 min-h-0 px-6",
-    rowGap: mode === "top3" ? (compact ? "gap-3" : "gap-6") : "gap-2",
+    rowGap: mode === "top3" ? (compact ? "gap-3" : "gap-5") : "gap-2",
     medalSize:
       mode === "top3"
-        ? compact ? "text-5xl" : "text-7xl"
+        ? compact ? "text-5xl" : "text-5xl md:text-6xl"
         : compact ? "text-2xl md:text-3xl" : "text-3xl md:text-4xl",
     nameSize:
       mode === "top3"
-        ? compact ? "text-4xl md:text-5xl" : "text-6xl md:text-7xl"
+        ? compact ? "text-4xl md:text-5xl" : "text-5xl md:text-6xl"
         : compact ? "text-2xl md:text-3xl" : "text-3xl md:text-4xl",
     roundScoreSize:
       mode === "top3"
-        ? compact ? "text-3xl md:text-4xl" : "text-6xl md:text-7xl"
+        ? compact ? "text-3xl md:text-4xl" : "text-4xl md:text-5xl"
         : compact ? "text-2xl md:text-3xl" : "text-3xl md:text-4xl",
     cumulSize:
       mode === "top3"
-        ? compact ? "text-4xl md:text-5xl" : "text-7xl md:text-8xl"
+        ? compact ? "text-4xl md:text-5xl" : "text-6xl md:text-7xl"
         : compact ? "text-3xl md:text-4xl" : "text-4xl md:text-5xl",
-    // Tất cả BXH chừa lề dưới ~20% chiều cao màn để nội dung được đẩy lên cao.
     cardPadding:
       mode === "top3"
-        ? compact ? "px-6 py-5 pb-[20vh]" : "px-12 py-8 pb-[20vh]"
-        : compact ? "px-6 py-4 pb-[20vh]" : "px-10 py-5 pb-[20vh]",
+        ? compact ? "px-6 py-5" : "px-12 py-8"
+        : compact ? "px-6 py-4" : "px-10 py-5",
   };
 
   return (
-    <main className="ocean-bg h-screen overflow-hidden flex flex-col p-4 md:p-8">
+    // pb-[20vh] ở main → cả viền card cũng được đẩy lên (kết thúc ở ~80% màn)
+    <main className="ocean-bg h-screen overflow-hidden flex flex-col px-4 pt-4 pb-[20vh] md:px-8 md:pt-6">
       {title && (
         <header className="text-center mb-3 shrink-0">
-          <h1 className={`${T.title} font-extrabold text-ocean-900 drop-shadow uppercase tracking-wide`}>
+          <h1 className={`${T.title} font-extrabold text-ocean-900 drop-shadow uppercase tracking-wide whitespace-nowrap truncate`}>
             {title}
           </h1>
         </header>
