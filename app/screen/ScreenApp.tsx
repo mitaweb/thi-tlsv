@@ -19,6 +19,7 @@ interface RoundWithGroup extends Round {
 export default function ScreenApp() {
   const [rounds, setRounds] = useState<RoundWithGroup[]>([]);
   const [roundId, setRoundId] = useState<string | null>(null);
+  const [showScoreboard, setShowScoreboard] = useState<boolean>(false);
   const [showTop3, setShowTop3] = useState<boolean>(false);
   const [audioReady, setAudioReady] = useState(false);
 
@@ -29,12 +30,13 @@ export default function ScreenApp() {
       .then((j) => j.ok && setRounds(j.data));
   }, []);
 
-  // Subscribe gm_display_state → tự follow vòng admin đang chiếu + show_top3
+  // Subscribe gm_display_state → tự follow vòng admin chọn + flag show_scoreboard/top3
   useEffect(() => {
     const sb = getBrowserClient();
     const fetchDs = () =>
-      sb.from("gm_display_state").select("current_round_id, show_top3").eq("id", 1).maybeSingle().then(({ data }) => {
+      sb.from("gm_display_state").select("current_round_id, show_scoreboard, show_top3").eq("id", 1).maybeSingle().then(({ data }) => {
         setRoundId((data as any)?.current_round_id ?? null);
+        setShowScoreboard((data as any)?.show_scoreboard === true);
         setShowTop3((data as any)?.show_top3 === true);
       });
     fetchDs();
@@ -79,17 +81,40 @@ export default function ScreenApp() {
     return <ScreenStage roundId={round.id} round={round} showTop3={showTop3} />;
   }
   if (round.kind === "panel") {
+    // Panel: chỉ chiếu BXH khi admin bấm "Chiếu BXH". Mặc định hiện màn idle.
+    if (!showScoreboard) return <RoundIdleScreen round={round} />;
     return <PanelLeaderboardScreen round={round} showTop3={showTop3} />;
   }
-  // debate
-  return <DebateScreen round={round} showTop3={showTop3} />;
+  // debate — pass showScoreboard từ display_state để chiếu BXH đồng nhất
+  return <DebateScreen round={round} showTop3={showTop3} showScoreboard={showScoreboard} />;
+}
+
+/** Màn chờ chung cho panel (Chân dung, Nhạy bén) — hiện tên vòng to + ngữ cảnh nhóm */
+function RoundIdleScreen({ round }: { round: RoundWithGroup }) {
+  return (
+    <main className="ocean-bg h-screen overflow-hidden flex items-center justify-center px-8">
+      <div className="card text-center max-w-4xl px-12 py-10">
+        {round.group?.name && (
+          <div className="text-2xl text-ocean-700 mb-3 uppercase tracking-widest font-semibold">
+            {round.group.name}
+          </div>
+        )}
+        <h1 className="text-6xl md:text-7xl font-extrabold text-ocean-900 drop-shadow uppercase tracking-wide mb-6">
+          {round.name}
+        </h1>
+        <div className="text-xl text-ocean-600 italic">
+          Đang chờ Ban Tổ chức bắt đầu...
+        </div>
+      </div>
+    </main>
+  );
 }
 
 /**
  * Màn chiếu vòng phản biện — background.png + title + đồng hồ đếm ngược.
  * Khi show_scoreboard = true → chiếu BXH thay vì timer (tái sử dụng PanelLeaderboardScreen).
  */
-function DebateScreen({ round, showTop3 }: { round: RoundWithGroup; showTop3: boolean }) {
+function DebateScreen({ round, showTop3, showScoreboard }: { round: RoundWithGroup; showTop3: boolean; showScoreboard: boolean }) {
   const { state, serverOffsetMs } = useRoundState(round.id);
   const remaining = useDebateCountdown(state, serverOffsetMs);
   const [contestants, setContestants] = useState<Contestant[]>([]);
@@ -161,8 +186,8 @@ function DebateScreen({ round, showTop3 }: { round: RoundWithGroup; showTop3: bo
     }
   }, [state?.phase, state?.debate_started_at, state?.debate_duration_sec, serverOffsetMs]);
 
-  // Nếu admin bật BXH → render leaderboard panel (chấm sau debate)
-  if (state?.show_scoreboard) {
+  // Nếu admin bật BXH (qua display_state) → chiếu BXH chấm sau debate
+  if (showScoreboard) {
     return <PanelLeaderboardScreen round={round} showTop3={showTop3} />;
   }
 

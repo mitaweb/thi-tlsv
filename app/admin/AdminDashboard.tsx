@@ -48,14 +48,14 @@ export default function AdminDashboard() {
   }, [rounds]);
 
   // Khi admin chuyển tab → broadcast cho /screen + /mc biết vòng nào đang preview.
-  // Chỉ set current_round_id, KHÔNG đụng đến show_scoreboard / show_top3 →
-  // nếu vòng cũ đang chiếu BXH, /screen sẽ tự chuyển BXH theo vòng mới (cùng UX).
+  // Reset show_scoreboard + show_top3 → mỗi tab bắt đầu CLEAN (idle), admin phải
+  // bấm "Chiếu BXH" mới hiện BXH. Tránh bug BXH cũ tự kéo theo qua vòng mới.
   useEffect(() => {
     if (!activeRoundId) return;
     fetch("/api/display-state", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ roundId: activeRoundId }),
+      body: JSON.stringify({ roundId: activeRoundId, showScoreboard: false, showTop3: false }),
     }).catch(() => {});
   }, [activeRoundId]);
 
