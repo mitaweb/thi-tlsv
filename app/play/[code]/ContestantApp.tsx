@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Contestant, Round, Answer } from "@/lib/types";
 import { useRoundState, useCountdown } from "@/lib/useRoundState";
 import { getBrowserClient } from "@/lib/supabase";
@@ -15,6 +15,10 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
   const [myPoints, setMyPoints] = useState<number>(0);
   const [cumulativeBefore, setCumulativeBefore] = useState<number>(0);
   const [busy, setBusy] = useState(false);
+  // Track click mới nhất của user — submit dùng giá trị này (chống race condition
+  // khi realtime fetchMine ghi đè selected bằng giá trị DB cũ)
+  const selectedRef = useRef<Opt | null>(null);
+  const lastClickAtRef = useRef<number>(0);
 
   // Power-up state
   const [powerupUsed, setPowerupUsed] = useState(false);      // đã bấm nút trong vòng thi
@@ -33,10 +37,17 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
         const cur = curId ? all.find((a) => a.question_id === curId) ?? null : null;
         setMyAnswer(cur);
         if (cur) {
-          setSelected((cur.selected_option as Opt) ?? null);
+          // Grace window 1.5s: nếu user vừa click thì giữ local selection,
+          // tránh realtime sync ghi đè khi click đổi đáp án liên tục
+          if (Date.now() - lastClickAtRef.current > 1500) {
+            setSelected((cur.selected_option as Opt) ?? null);
+          }
           setSubmitted(cur.locked);
         } else {
-          setSelected(null);
+          // Câu mới: clear cả ref + state
+          if (Date.now() - lastClickAtRef.current > 1500) {
+            setSelected(null);
+          }
           setSubmitted(false);
         }
       });
@@ -90,10 +101,12 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
       });
   }, [contestant.id, round.id, state?.current_question_id]);
 
-  // Reset per-question UI khi đổi câu
+  // Reset per-question UI khi đổi câu (cả ref + state)
   useEffect(() => {
     setSelected(null);
     setSubmitted(false);
+    selectedRef.current = null;
+    lastClickAtRef.current = 0;
   }, [state?.current_question_id]);
 
   const phase = state?.phase ?? "idle";
@@ -271,6 +284,9 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
                       disabled={!canPick}
                       onClick={() => {
                         if (!canPick) return;
+                        // Lưu ref TRƯỚC setState để submit lúc click luôn dùng giá trị mới nhất
+                        selectedRef.current = k;
+                        lastClickAtRef.current = Date.now();
                         setSelected(k);
                         sendSelect(k);
                       }}
@@ -288,7 +304,11 @@ export default function ContestantApp({ contestant, round }: { contestant: Conte
                   <button
                     className="btn-primary"
                     disabled={!selected || submitted || busy || phase !== "running"}
-                    onClick={() => selected && sendSubmit(selected)}
+                    onClick={() => {
+                      // Ưu tiên selectedRef (giá trị click mới nhất) > state selected
+                      const opt = selectedRef.current ?? selected;
+                      if (opt) sendSubmit(opt);
+                    }}
                   >
                     {submitted ? "Đã gửi đáp án" : "Gửi đáp án"}
                   </button>

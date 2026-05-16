@@ -104,6 +104,7 @@ function MCLeaderboardOverlay({ round, showTop3 }: { round: RoundWithGroup; show
     <UnifiedLeaderboard
       rows={rows}
       mode={showTop3 ? "top3" : "full"}
+      compact={true}
       title={`${round.group?.name ?? ""} – ${round.name}`}
     />
   );

@@ -393,25 +393,22 @@ function ScreenStage({ roundId, round, showTop3 }: { roundId: string; round: Rou
   const effectiveReveal = phase === "reveal" || (phase === "running" && remaining <= 0);
 
   return (
-    <main className="ocean-bg h-screen overflow-hidden p-8 flex flex-col">
-      <header className="text-center mb-3">
-        <h1 className="text-4xl font-extrabold text-ocean-900 drop-shadow uppercase tracking-wide">
-          PHẦN THI {round.name}
-        </h1>
-      </header>
-
+    <main className="ocean-bg h-screen overflow-hidden px-8 pt-3 pb-6 flex flex-col">
       <div className="relative flex-1 flex flex-col min-h-0">
         {/* Câu hỏi — LUÔN render khi có câu, ẩn bằng visibility khi bật BXH.
             Không dùng unmount/display:none để CSS animation `correct-reveal`
             không chạy lại khi IT toggle BXH. */}
         {currentQuestion && phase !== "idle" && (
           <div className={`flex-1 flex flex-col min-h-0 ${showLb ? "invisible" : ""}`}>
-            {/* Hàng trên: số câu + countdown */}
-            <div className="flex justify-between items-center mb-2">
-              <div className="text-2xl font-bold text-ocean-800 bg-white/70 px-4 py-2 rounded-xl">
+            {/* Top bar gộp: số câu | tiêu đề phần thi | countdown — tiết kiệm 1 dòng */}
+            <div className="flex items-center justify-between gap-4 mb-2">
+              <div className="text-xl md:text-2xl font-bold text-ocean-800 bg-white/70 px-3 py-2 rounded-xl shrink-0">
                 Câu {(state?.question_no ?? 0) > 0 ? state!.question_no : currentQuestion.display_order}
-                <span className="text-lg font-semibold text-ocean-600"> / {round.questions_to_play}</span>
+                <span className="text-base md:text-lg font-semibold text-ocean-600"> / {round.questions_to_play}</span>
               </div>
+              <h1 className="flex-1 text-center text-2xl md:text-3xl font-extrabold text-ocean-900 drop-shadow uppercase tracking-wide truncate">
+                PHẦN THI {round.name}
+              </h1>
               <CountdownBig remaining={remaining} phase={phase} />
             </div>
 
@@ -480,7 +477,7 @@ function ScreenStage({ roundId, round, showTop3 }: { roundId: string; round: Rou
               </div>
             ) : (
               <div className="flex-1 flex flex-col min-h-0">
-                <div className="card w-full flex flex-col gap-4 mt-2">
+                <div className="card w-full flex flex-col gap-3">
                   <h2 className="text-3xl md:text-5xl font-bold text-ocean-900 leading-snug">
                     {currentQuestion.prompt}
                   </h2>
