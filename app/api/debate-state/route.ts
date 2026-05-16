@@ -64,6 +64,21 @@ export async function POST(req: NextRequest) {
       };
       break;
 
+    case "select_match":
+      // Chọn cặp đấu để show trên screen — không start timer
+      if (!match || ![1, 2, 3].includes(match)) {
+        return NextResponse.json({ ok: false, error: "invalid_match" }, { status: 400 });
+      }
+      patch = {
+        ...patch,
+        phase: "idle",
+        debate_match: match,
+        debate_phase: null,
+        debate_started_at: null,
+        debate_duration_sec: null,
+      };
+      break;
+
     case "stop":
       patch = {
         ...patch,

@@ -48,6 +48,11 @@ export default function DebateRoundControl({
   const [leaderboard, setLeaderboard] = useState<RoundLeaderboardRow[]>([]);
   const [isProjecting, setIsProjecting] = useState(false);
 
+  // Sync selectedMatch từ DB khi admin reload trang hoặc state.debate_match đổi
+  useEffect(() => {
+    if (state?.debate_match) setSelectedMatch(state.debate_match);
+  }, [state?.debate_match]);
+
   // Top 3 thí sinh theo cumulative vòng liền kề trước
   useEffect(() => {
     fetch(`/api/debate-contestants?roundId=${roundId}`)
@@ -149,14 +154,20 @@ export default function DebateRoundControl({
   }
 
   async function toggleProjection() {
+    const turningOn = !isProjecting;
     await fetch("/api/display-state", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        roundId: isProjecting ? null : roundId,
+        roundId: turningOn ? roundId : null,
         showScoreboard: false, // mặc định show timer, không show BXH
+        showTop3: false,
       }),
     });
+    // Khi bật màn → đồng bộ luôn cặp đấu đang chọn lên DB để /screen hiển thị
+    if (turningOn && selectedMatch) {
+      dispatch("select_match", { match: selectedMatch });
+    }
   }
 
   async function toggleBxhProjection() {
@@ -249,7 +260,11 @@ export default function DebateRoundControl({
                 return (
                   <button
                     key={m}
-                    onClick={() => setSelectedMatch(m)}
+                    onClick={() => {
+                      setSelectedMatch(m);
+                      // Broadcast match selection lên /screen + /mc (không start timer)
+                      dispatch("select_match", { match: m });
+                    }}
                     className={`px-4 py-2 rounded-lg border-2 text-sm font-semibold ${
                       selectedMatch === m
                         ? "bg-ocean-600 text-white border-ocean-700"
