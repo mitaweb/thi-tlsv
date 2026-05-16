@@ -413,20 +413,27 @@ function ScreenStage({ roundId, round, showTop3 }: { roundId: string; round: Rou
             </div>
 
             {/* Thanh power-up: hiển thị ai đã kích hoạt */}
-            {powerupUsers.length > 0 && (
-              <div className="flex items-center gap-3 flex-wrap bg-amber-100/90 backdrop-blur border-2 border-amber-400 rounded-xl px-5 py-2 mb-3">
-                <span className="text-2xl font-bold text-amber-800 shrink-0">
-                  {round.powerup_icon} {round.powerup_name}:
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {powerupUsers.map((u) => (
-                    <span key={u.contestant_id} className="bg-amber-200 text-amber-900 px-4 py-1 rounded-full text-xl font-semibold">
-                      {u.full_name}
-                    </span>
-                  ))}
+            {powerupUsers.length > 0 && (() => {
+              // Auto-fit theo số lượng — ít người → chip to, nhiều người → chip nhỏ
+              const n = powerupUsers.length;
+              const labelSize = n <= 2 ? "text-2xl" : n <= 4 ? "text-xl" : "text-lg";
+              const chipSize = n <= 2 ? "px-4 py-1 text-xl" : n <= 4 ? "px-3 py-0.5 text-lg" : "px-2.5 py-0.5 text-base";
+              const barPadding = n <= 2 ? "px-5 py-2" : n <= 4 ? "px-4 py-1.5" : "px-3 py-1";
+              return (
+                <div className={`shrink-0 flex items-center gap-3 flex-wrap bg-amber-100/90 backdrop-blur border-2 border-amber-400 rounded-xl mb-2 ${barPadding}`}>
+                  <span className={`font-bold text-amber-800 shrink-0 ${labelSize}`}>
+                    {round.powerup_icon} {round.powerup_name}:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
+                    {powerupUsers.map((u) => (
+                      <span key={u.contestant_id} className={`bg-amber-200 text-amber-900 rounded-full font-semibold ${chipSize}`}>
+                        {u.full_name}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Vùng câu hỏi.
                 - Câu không media: flow tự nhiên từ trên (đáp án sát câu hỏi)
