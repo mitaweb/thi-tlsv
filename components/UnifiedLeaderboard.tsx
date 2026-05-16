@@ -51,10 +51,11 @@ export default function UnifiedLeaderboard({
       mode === "top3"
         ? compact ? "text-4xl md:text-5xl" : "text-7xl md:text-8xl"
         : compact ? "text-3xl md:text-4xl" : "text-4xl md:text-5xl",
+    // Tất cả BXH chừa lề dưới ~20% chiều cao màn để nội dung được đẩy lên cao.
     cardPadding:
       mode === "top3"
-        ? compact ? "px-6 py-5 pb-6" : "px-12 py-8 pb-[10vh]"
-        : compact ? "px-6 py-4 pb-4" : "px-10 py-5 pb-6",
+        ? compact ? "px-6 py-5 pb-[20vh]" : "px-12 py-8 pb-[20vh]"
+        : compact ? "px-6 py-4 pb-[20vh]" : "px-10 py-5 pb-[20vh]",
   };
 
   return (
