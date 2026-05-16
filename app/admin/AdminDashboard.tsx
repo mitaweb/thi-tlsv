@@ -47,6 +47,18 @@ export default function AdminDashboard() {
       .sort((a, b) => a.order - b.order);
   }, [rounds]);
 
+  // Khi admin chuyển tab → broadcast cho /screen + /mc biết vòng nào đang preview.
+  // Chỉ set current_round_id, KHÔNG đụng đến show_scoreboard / show_top3 →
+  // nếu vòng cũ đang chiếu BXH, /screen sẽ tự chuyển BXH theo vòng mới (cùng UX).
+  useEffect(() => {
+    if (!activeRoundId) return;
+    fetch("/api/display-state", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ roundId: activeRoundId }),
+    }).catch(() => {});
+  }, [activeRoundId]);
+
   // Auto-select first round of current group khi activeGroupCode đổi hoặc lần đầu load
   useEffect(() => {
     const g = grouped.find((x) => x.code === activeGroupCode);

@@ -523,11 +523,19 @@ function ScreenStage({ roundId, round, showTop3 }: { roundId: string; round: Rou
           </div>
         )}
 
-        {/* Trạng thái idle (chưa có câu nào) */}
+        {/* Trạng thái idle (chưa có câu nào) — hiện tên vòng to */}
         {(!currentQuestion || phase === "idle") && !showLb && (
           <div className="flex-1 flex items-center justify-center">
-            <div className="card text-center text-2xl text-ocean-800 max-w-2xl">
-              {phase === "idle" ? "Đang chờ bắt đầu..." : "..."}
+            <div className="card text-center max-w-4xl px-12 py-10">
+              <div className="text-2xl text-ocean-700 mb-3 uppercase tracking-widest font-semibold">
+                Phần thi
+              </div>
+              <h1 className="text-6xl md:text-7xl font-extrabold text-ocean-900 drop-shadow uppercase tracking-wide mb-6">
+                {round.name}
+              </h1>
+              <div className="text-xl text-ocean-600 italic">
+                Đang chờ Ban Tổ chức bắt đầu...
+              </div>
             </div>
           </div>
         )}
