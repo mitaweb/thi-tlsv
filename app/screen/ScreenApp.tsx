@@ -218,16 +218,16 @@ function DebateScreen({ round, showTop3, showScoreboard }: { round: RoundWithGro
               Cặp đấu {matchNo}
             </div>
 
-            {/* Tên 2 thí sinh — inline với VS giữa */}
+            {/* Tên 2 thí sinh — stack dọc, mỗi tên 1 hàng không bị wrap, VS pill giữa */}
             {matchPair && (
-              <div className="flex items-center justify-center gap-3 md:gap-5 flex-wrap text-center w-full">
-                <div className="text-2xl md:text-4xl font-extrabold text-ocean-900 flex-1 text-right leading-tight max-w-[40%]">
+              <div className="flex flex-col items-center gap-2 w-full">
+                <div className="text-3xl md:text-5xl font-extrabold text-ocean-900 leading-tight text-center whitespace-nowrap">
                   {matchPair[0].full_name}
                 </div>
-                <div className="bg-amber-500 text-white rounded-full w-12 h-12 md:w-14 md:h-14 flex items-center justify-center text-lg md:text-2xl font-extrabold shadow-lg shrink-0">
-                  VS
+                <div className="bg-amber-500 text-white rounded-full px-5 py-1 text-lg md:text-xl font-extrabold shadow-lg uppercase tracking-widest">
+                  vs
                 </div>
-                <div className="text-2xl md:text-4xl font-extrabold text-ocean-900 flex-1 text-left leading-tight max-w-[40%]">
+                <div className="text-3xl md:text-5xl font-extrabold text-ocean-900 leading-tight text-center whitespace-nowrap">
                   {matchPair[1].full_name}
                 </div>
               </div>
