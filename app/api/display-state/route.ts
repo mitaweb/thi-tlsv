@@ -42,6 +42,16 @@ export async function POST(req: NextRequest) {
   const { error } = await sb.from("gm_display_state").update(patch).eq("id", 1);
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 
+  // Đánh dấu round_state.show_scoreboard = true KHI chiếu BXH (publish permanent)
+  // → khóa Hội đồng SV trong /api/panel-score + JudgeApp realtime form lock.
+  // Khi "Ẩn BXH" (showScoreboard=false) thì KHÔNG reset round_state (giữ trạng thái đã công bố).
+  if (showScoreboard === true && roundId) {
+    await sb
+      .from("gm_round_state")
+      .update({ show_scoreboard: true, updated_at: new Date().toISOString() })
+      .eq("round_id", roundId);
+  }
+
   // Ghi log
   await sb.from("gm_activity_log").insert({
     round_id: roundId ?? null,
