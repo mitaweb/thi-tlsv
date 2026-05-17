@@ -276,8 +276,8 @@ function DebateScreen({ round, showTop3, showScoreboard }: { round: RoundWithGro
 
 function getMatchPair(contestants: Contestant[], match: number): [Contestant, Contestant] | null {
   if (contestants.length < 3) return null;
-  // Cặp 1: Top1 vs Top2, Cặp 2: Top1 vs Top3, Cặp 3: Top3 vs Top2
-  const pairs: [number, number][] = [[0, 1], [0, 2], [2, 1]];
+  // Cặp 1: Top1 vs Top2, Cặp 2: Top2 vs Top3, Cặp 3: Top3 vs Top1
+  const pairs: [number, number][] = [[0, 1], [1, 2], [2, 0]];
   const [a, b] = pairs[match - 1] ?? pairs[0];
   return [contestants[a], contestants[b]];
 }

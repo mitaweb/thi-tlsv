@@ -22,9 +22,9 @@ const DEBATE_PHASE_LABELS: Record<string, string> = {
 };
 
 const MATCH_PAIRS: Record<number, [number, number]> = {
-  1: [0, 1],
-  2: [0, 2],
-  3: [2, 1],
+  1: [0, 1],  // Top1 vs Top2
+  2: [1, 2],  // Top2 vs Top3
+  3: [2, 0],  // Top3 vs Top1
 };
 
 /**
