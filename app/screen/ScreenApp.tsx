@@ -199,9 +199,10 @@ function DebateScreen({ round, showTop3, showScoreboard }: { round: RoundWithGro
   const totalSec = state?.debate_duration_sec ?? 0;
 
   return (
-    <main className="debate-bg h-screen overflow-hidden flex flex-col items-center justify-center text-ocean-900 px-4 md:px-8">
-      {/* Khung frosted glass — gọn, layout có nhịp điệu thị giác */}
-      <div className="bg-sky-100/85 backdrop-blur-md rounded-3xl shadow-2xl border-2 border-white/60 max-w-5xl w-full px-6 md:px-10 py-5 md:py-7 flex flex-col items-center gap-3">
+    // Đẩy nội dung lên cao — top margin ~20vh thay vì center vertical
+    <main className="debate-bg h-screen overflow-hidden flex flex-col items-center text-ocean-900 px-4 md:px-8 pt-[15vh] md:pt-[20vh]">
+      {/* Khung frosted glass — nhịp giãn rộng hơn cho dễ đọc */}
+      <div className="bg-sky-100/85 backdrop-blur-md rounded-3xl shadow-2xl border-2 border-white/60 max-w-5xl w-full px-6 md:px-12 py-6 md:py-8 flex flex-col items-center gap-5 md:gap-7">
         {/* Title — gọn ở trên */}
         <h1 className="text-xl md:text-3xl font-extrabold tracking-wider whitespace-nowrap text-ocean-900">
           {round.group?.debate_title ?? "PHẢN BIỆN"}
